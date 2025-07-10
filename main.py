@@ -288,8 +288,45 @@ def paga_personaggio(page_id):
     else:
         return f"❌ Errore nel pagare {nome_pg}."
 
+@tree.command(name="stipendio", description="Ritira lo stipendio per un tuo personaggio")
+async def stipendio(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    discord_id = str(interaction.user.id)
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    payload = {
+        "filter": {
+            "property": "ID Discord",
+            "rich_text": {
+                "equals": discord_id
+            }
+        }
+    }
+    response = requests.post(url, headers=HEADERS, json=payload)
+    data = response.json()
+
+    personaggi = data.get("results", [])
+    if not personaggi:
+        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
+        return
+
+    if len(personaggi) == 1:
+        page_id = personaggi[0]["id"]
+        result = paga_personaggio(page_id)
+        await interaction.followup.send(result, ephemeral=True)
+    else:
+        mapping = {}
+        pg_list = []
+        for pg in personaggi:
+            nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+            mapping[nome_pg] = pg["id"]
+            pg_list.append(nome_pg)
+
+        view = StipendioView(pg_list, mapping, interaction.user.id)
+        await interaction.followup.send("Scegli per quale PG vuoi ritirare lo stipendio:", view=view, ephemeral=True)
+
     # CODICE TRASFERIMENTO SOLDI:
-@tree.command(name="trasferisci", description="Trasferisci denaro da un tuo PG a un altro PG")
+@tree.command(name="trasferisci", description="Trasferisci Croniri da un tuo personaggio a un altro")
 async def trasferisci(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     user_id = str(interaction.user.id)
@@ -321,11 +358,12 @@ async def trasferisci(interaction: discord.Interaction):
         mittente_nome = mittente_pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
         mittente_saldo = mittente_pg["properties"]["Croniri"]["number"]
 
-        # Prendi tutti i PG di altri utenti
+        # Prendi tutti i PG di altri utenti (escludi mittente)
         res_all = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS)
         tutti_pg = res_all.json().get("results", [])
         pg_dest = [
-            pg for pg in tutti_pg if pg["properties"].get("ID Discord", {}).get("rich_text", [{}])[0].get("text", {}).get("content", "") != user_id
+            pg for pg in tutti_pg
+            if pg["id"] != mittente_id and pg["properties"].get("ID Discord", {}).get("rich_text", [{}])[0].get("text", {}).get("content", "") != user_id
         ]
 
         if not pg_dest:
@@ -359,7 +397,11 @@ async def trasferisci(interaction: discord.Interaction):
 
     mittente_select.callback = mittente_callback
     await interaction.followup.send("Hai più di un PG. Scegli il mittente:", view=mittente_view, ephemeral=True)
+
+
 class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
+    recent_transactions = {}
+
     def __init__(self, mittente_id, mittente_nome, mittente_saldo, destinatario_id, destinatario_nome, destinatario_user_id):
         super().__init__()
         self.mittente_id = mittente_id
@@ -376,14 +418,21 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         self.add_item(self.causale)
 
     async def on_submit(self, interaction: discord.Interaction):
+        user_key = f"{interaction.user.id}-{self.mittente_id}-{self.destinatario_id}"
+        now = datetime.utcnow().timestamp()
+        if user_key in self.recent_transactions and now - self.recent_transactions[user_key] < 60:
+            await interaction.response.send_message("⏳ Aspetta qualche secondo prima di rifare una transazione simile.", ephemeral=True)
+            return
+        self.recent_transactions[user_key] = now
+
         try:
             importo = int(self.importo.value.strip())
         except ValueError:
-            await interaction.response.send_message("❌ L'importo deve essere un numero.", ephemeral=True)
+            await interaction.response.send_message("❌ L'importo deve essere un numero intero.", ephemeral=True)
             return
 
-        if importo <= 0:
-            await interaction.response.send_message("❌ L'importo deve essere positivo.", ephemeral=True)
+        if importo < 1:
+            await interaction.response.send_message("❌ L'importo minimo trasferibile è 1 Ȼ.", ephemeral=True)
             return
         if importo > self.mittente_saldo:
             await interaction.response.send_message("❌ Il tuo personaggio non ha abbastanza Ȼ.", ephemeral=True)
@@ -391,7 +440,7 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
 
         # Aggiorna saldi
         new_mittente = self.mittente_saldo - importo
-        patch_mittente = requests.patch(
+        requests.patch(
             f"https://api.notion.com/v1/pages/{self.mittente_id}",
             headers=HEADERS,
             json={"properties": {"Croniri": {"number": new_mittente}}}
@@ -401,7 +450,7 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         saldo_dest = res_dest.json()["properties"]["Croniri"]["number"] or 0
         new_dest = saldo_dest + importo
 
-        patch_dest = requests.patch(
+        requests.patch(
             f"https://api.notion.com/v1/pages/{self.destinatario_id}",
             headers=HEADERS,
             json={"properties": {"Croniri": {"number": new_dest}}}
@@ -420,32 +469,29 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-   # AGGIORNAMENTO NELLA RISPOSTA DEL MESSAGGIO DOPO IL TRASFERIMENTO:
-await interaction.response.send_message(
-    f"✅ {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n"
-    f"📄 Causale: {self.causale.value.strip()}",
-    ephemeral=True  # visibile solo a chi ha fatto l'interazione
-)
+        await interaction.response.send_message(
+            f"✅ {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n"
+            f"📄 Causale: {self.causale.value.strip()}",
+            ephemeral=True
+        )
 
-# INVIO MESSAGGIO VISIBILE SOLO A LORO DUE
-try:
-    channel = await interaction.guild.create_text_channel(
-        name=f"transazione-{self.mittente_nome.lower()}-{self.destinatario_nome.lower()}",
-        overwrites={
-            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-            interaction.user: discord.PermissionOverwrite(view_channel=True),
-            await interaction.client.fetch_user(int(self.destinatario_user_id)): discord.PermissionOverwrite(view_channel=True)
-        },
-        reason="Transazione privata"
-    )
-
-    await channel.send(
-        f"🔄 **{self.mittente_nome}** (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a **{self.destinatario_nome}** (<@{self.destinatario_user_id}>)\n"
-        f"📄 Causale: {self.causale.value.strip()}"
-    )
-except Exception as e:
-    print(f"Errore nella creazione del canale privato: {e}")
-
+        try:
+            destinatario_user = await interaction.client.fetch_user(int(self.destinatario_user_id))
+            channel = await interaction.guild.create_text_channel(
+                name=f"transazione-{self.mittente_nome.lower()}-{self.destinatario_nome.lower()}",
+                overwrites={
+                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+                    interaction.user: discord.PermissionOverwrite(view_channel=True),
+                    destinatario_user: discord.PermissionOverwrite(view_channel=True)
+                },
+                reason="Transazione privata"
+            )
+            await channel.send(
+                f"🔄 **{self.mittente_nome}** (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a **{self.destinatario_nome}** (<@{self.destinatario_user_id}>)\n"
+                f"📄 Causale: {self.causale.value.strip()}"
+            )
+        except Exception as e:
+            print(f"Errore nella creazione del canale privato: {e}")
 
 
 # CODICI PER DEPLOY:
