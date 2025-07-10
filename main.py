@@ -332,7 +332,6 @@ async def trasferisci(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     user_id = str(interaction.user.id)
 
-    # Prendi tutti i PG dell’utente
     res = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS, json={
         "filter": {"property": "ID Discord", "rich_text": {"equals": user_id}}
     })
@@ -359,7 +358,6 @@ async def trasferisci(interaction: discord.Interaction):
         mittente_nome = mittente_pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
         mittente_saldo = mittente_pg["properties"]["Croniri"]["number"]
 
-        # Prendi tutti i PG di altri utenti (escludi mittente)
         res_all = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS)
         tutti_pg = res_all.json().get("results", [])
         pg_dest = [
@@ -441,7 +439,6 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             await interaction.followup.send("❌ Il tuo personaggio non ha abbastanza Croniri.", ephemeral=True)
             return
 
-        # Aggiorna saldi
         new_mittente = self.mittente_saldo - importo
         requests.patch(
             f"https://api.notion.com/v1/pages/{self.mittente_id}",
@@ -459,7 +456,6 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             json={"properties": {"Croniri": {"number": new_dest}}}
         )
 
-        # Log transazione
         tx_payload = {
             "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
             "properties": {
@@ -472,18 +468,13 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-        # Messaggio ai due user
-      mittente_msg = (
-    f"💸 <@{interaction.user.id}> (**{self.mittente_nome}**) ha trasferito Ȼ{importo} a "
-    f"<@{self.destinatario_user_id}> (**{self.destinatario_nome}**).\n"
-    f"📄 Causale: {self.causale.value.strip()}"
-)
+        messaggio_pubblico = (
+            f"🔁 <@{interaction.user.id}> (**{self.mittente_nome}**) ha trasferito Ȼ{importo} a "
+            f"<@{self.destinatario_user_id}> (**{self.destinatario_nome}**).\n"
+            f"📄 Causale: {self.causale.value.strip()}"
+        )
 
-# Invia nella chat attuale, visibile a tutti
-await interaction.channel.send(mittente_msg)
-
-# Risposta ephemeral per confermare l'invio al mittente
-await interaction.response.send_message("✅ Transazione completata e notificata nella chat.", ephemeral=True)
+        await interaction.channel.send(messaggio_pubblico)
 
 
 # CODICI PER DEPLOY:
