@@ -326,6 +326,7 @@ async def stipendio(interaction: discord.Interaction):
         await interaction.followup.send("Scegli per quale PG vuoi ritirare lo stipendio:", view=view, ephemeral=True)
 
     # CODICE TRASFERIMENTO SOLDI:
+
 @tree.command(name="trasferisci", description="Trasferisci Croniri da un tuo personaggio a un altro")
 async def trasferisci(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
@@ -418,24 +419,26 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         self.add_item(self.causale)
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         user_key = f"{interaction.user.id}-{self.mittente_id}-{self.destinatario_id}"
         now = datetime.utcnow().timestamp()
-        if user_key in self.recent_transactions and now - self.recent_transactions[user_key] < 60:
-            await interaction.response.send_message("⏳ Aspetta qualche secondo prima di rifare una transazione simile.", ephemeral=True)
+        if user_key in self.recent_transactions and now - self.recent_transactions[user_key] < 10:
+            await interaction.followup.send("⏳ Aspetta qualche secondo prima di rifare una transazione simile.", ephemeral=True)
             return
         self.recent_transactions[user_key] = now
 
         try:
             importo = int(self.importo.value.strip())
         except ValueError:
-            await interaction.response.send_message("❌ L'importo deve essere un numero intero.", ephemeral=True)
+            await interaction.followup.send("❌ L'importo deve essere un numero intero.", ephemeral=True)
             return
 
         if importo < 1:
-            await interaction.response.send_message("❌ L'importo minimo trasferibile è 1 Ȼ.", ephemeral=True)
+            await interaction.followup.send("❌ L'importo minimo trasferibile è 1 Ȼ.", ephemeral=True)
             return
         if importo > self.mittente_saldo:
-            await interaction.response.send_message("❌ Il tuo personaggio non ha abbastanza Ȼ.", ephemeral=True)
+            await interaction.followup.send("❌ Il tuo personaggio non ha abbastanza Ȼ.", ephemeral=True)
             return
 
         # Aggiorna saldi
@@ -469,18 +472,17 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-    # Messaggio ai due user
+        # Messaggio ai due user
         mittente_msg = f"📤 {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n📄 Causale: {self.causale.value.strip()}"
         destinatario_msg = f"📥 {self.destinatario_nome} (<@{self.destinatario_user_id}>) ha ricevuto Ȼ{importo} da {self.mittente_nome} (<@{interaction.user.id}>).\n📄 Causale: {self.causale.value.strip()}"
 
-        await interaction.response.send_message(mittente_msg, ephemeral=True)
+        await interaction.followup.send(mittente_msg, ephemeral=True)
 
         try:
             destinatario_user = await interaction.client.fetch_user(int(self.destinatario_user_id))
             await destinatario_user.send(destinatario_msg)
         except Exception as e:
             print(f"Errore nell'invio del messaggio al destinatario: {e}")
-
 
 # CODICI PER DEPLOY:
 
