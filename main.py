@@ -289,91 +289,102 @@ def paga_personaggio(page_id):
         return f"❌ Errore nel pagare {nome_pg}."
 
     # CODICE TRASFERIMENTO SOLDI:
-
 @tree.command(name="trasferisci", description="Trasferisci denaro da un tuo PG a un altro PG")
 async def trasferisci(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     user_id = str(interaction.user.id)
 
-    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
-    payload = {
-        "filter": {
-            "property": "ID Discord",
-            "rich_text": {"equals": user_id}
-        }
-    }
-    res = requests.post(url, headers=HEADERS, json=payload)
-    pg_utente = res.json().get("results", [])
+    # Prendi i PG dell'utente
+    res = requests.post(
+        f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
+        headers=HEADERS,
+        json={"filter": {"property": "ID Discord", "rich_text": {"equals": user_id}}}
+    )
+    miei_pg = res.json().get("results", [])
 
-    if len(pg_utente) == 0:
+    if not miei_pg:
         await interaction.followup.send("❌ Non ho trovato personaggi collegati al tuo ID.", ephemeral=True)
         return
 
-    # Scarica tutti i PG esistenti per selezionare il destinatario
-    all_pgs = requests.post(
-        f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
-        headers=HEADERS
-    ).json().get("results", [])
+    mittente_opts = [
+        discord.SelectOption(label=pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"], value=pg["id"])
+        for pg in miei_pg
+    ]
 
-    destinatari = []
-    for pg in all_pgs:
-        nome = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-        pg_id = pg["id"]
-        if pg_id not in [p["id"] for p in pg_utente]:
-            destinatari.append((nome, pg_id, pg["properties"]["ID Discord"]["rich_text"][0]["text"]["content"]))
+    view = discord.ui.View(timeout=60)
+    select = discord.ui.Select(placeholder="Seleziona il tuo PG mittente", options=mittente_opts)
 
-    if not destinatari:
-        await interaction.followup.send("❌ Nessun destinatario disponibile.", ephemeral=True)
-        return
+    async def mittente_callback(inner: discord.Interaction):
+        if inner.user.id != interaction.user.id:
+            await inner.response.send_message("Non è il tuo menu.", ephemeral=True)
+            return
 
-    if len(pg_utente) == 1:
-        pg = pg_utente[0]
-        mittente_id = pg["id"]
-        mittente_nome = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-        mittente_saldo = pg["properties"]["Croniri"]["number"]
+        mittente_id = select.values[0]
+        mittente_pg = next(pg for pg in miei_pg if pg["id"] == mittente_id)
+        mittente_nome = mittente_pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+        mittente_saldo = mittente_pg["properties"]["Croniri"]["number"]
 
-        await interaction.followup.send_modal(TransazioneSelezionaDestinatarioModal(
-            mittente_id, mittente_nome, mittente_saldo, destinatari
-        ), ephemeral=True)
-    else:
-        # Scegli PG mittente
-        view = discord.ui.View(timeout=60)
+        # Carica tutti i PG disponibili (tranne i propri)
+        all_pg_data = requests.post(
+            f"https://api.notion.com/v1/databases/{DATABASE_ID}/query",
+            headers=HEADERS
+        ).json().get("results", [])
 
-        select = discord.ui.Select(
-            placeholder="Scegli il tuo PG mittente",
-            options=[discord.SelectOption(label=pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"], value=pg["id"])
-                     for pg in pg_utente]
-        )
+        destinatari = []
+        for pg in all_pg_data:
+            if pg["id"] == mittente_id:
+                continue  # Escludi mittente stesso
+            nome = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+            discord_id = pg["properties"]["ID Discord"]["rich_text"][0]["text"]["content"]
+            destinatari.append((pg["id"], nome, discord_id))
 
-        async def select_callback(inter: discord.Interaction):
-            if inter.user.id != interaction.user.id:
-                await inter.response.send_message("Non è il tuo menu.", ephemeral=True)
+        if not destinatari:
+            await inner.response.send_message("❌ Nessun destinatario disponibile.", ephemeral=True)
+            return
+
+        dest_opts = [
+            discord.SelectOption(label=nome, value=f"{pg_id}|{discord_id}")
+            for pg_id, nome, discord_id in destinatari
+        ]
+        dest_view = discord.ui.View(timeout=60)
+        dest_select = discord.ui.Select(placeholder="Seleziona il destinatario", options=dest_opts)
+
+        async def dest_callback(inner2: discord.Interaction):
+            if inner2.user.id != interaction.user.id:
+                await inner2.response.send_message("Non è il tuo menu.", ephemeral=True)
                 return
 
-            selected_id = select.values[0]
-            selected_pg = next(pg for pg in pg_utente if pg["id"] == selected_id)
-            nome = selected_pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-            saldo = selected_pg["properties"]["Croniri"]["number"]
+            dest_value = dest_select.values[0]
+            destinatario_id, destinatario_discord = dest_value.split("|")
+            destinatario_pg = next(pg for pg in destinatari if pg[0] == destinatario_id)
+            destinatario_nome = destinatario_pg[1]
 
-            await inter.response.send_modal(TransazioneSelezionaDestinatarioModal(
-                selected_id, nome, saldo, destinatari
+            await inner2.response.send_modal(TransazioneFinaleModal(
+                mittente_id, mittente_nome, mittente_saldo,
+                destinatario_id, destinatario_nome, destinatario_discord
             ))
 
-        select.callback = select_callback
-        view.add_item(select)
-        await interaction.followup.send("Hai più PG. Scegli il mittente:", view=view, ephemeral=True)
+        dest_select.callback = dest_callback
+        dest_view.add_item(dest_select)
+        await inner.response.send_message("Seleziona il destinatario:", view=dest_view, ephemeral=True)
+
+    select.callback = mittente_callback
+    view.add_item(select)
+    await interaction.followup.send("Seleziona il PG mittente:", view=view, ephemeral=True)
 
 
-class TransazioneSelezionaDestinatarioModal(discord.ui.Modal, title="Trasferimento Croniri"):
-    def __init__(self, mittente_id, mittente_nome, mittente_saldo, destinatari):
+class TransazioneFinaleModal(discord.ui.Modal, title="Dati trasferimento"):
+    def __init__(self, mittente_id, mittente_nome, mittente_saldo, destinatario_id, destinatario_nome, destinatario_discord):
         super().__init__()
         self.mittente_id = mittente_id
         self.mittente_nome = mittente_nome
         self.mittente_saldo = mittente_saldo
-        self.destinatari = destinatari
+        self.destinatario_id = destinatario_id
+        self.destinatario_nome = destinatario_nome
+        self.destinatario_discord = destinatario_discord
 
-        self.importo = discord.ui.TextInput(label="Importo da trasferire", required=True, placeholder="Ȼ")
-        self.causale = discord.ui.TextInput(label="Causale", required=False, placeholder="Motivo del trasferimento")
+        self.importo = discord.ui.TextInput(label="Importo", placeholder="Solo numero intero", required=True)
+        self.causale = discord.ui.TextInput(label="Causale", required=False, placeholder="Es. Debito, regalo...")
 
         self.add_item(self.importo)
         self.add_item(self.causale)
@@ -382,81 +393,61 @@ class TransazioneSelezionaDestinatarioModal(discord.ui.Modal, title="Trasferimen
         try:
             importo = int(self.importo.value.strip())
         except ValueError:
-            await interaction.response.send_message("❌ L'importo deve essere un numero.", ephemeral=True)
+            await interaction.response.send_message("❌ L'importo deve essere un numero intero.", ephemeral=True)
             return
 
         if importo <= 0:
             await interaction.response.send_message("❌ L'importo deve essere positivo.", ephemeral=True)
             return
         if importo > self.mittente_saldo:
-            await interaction.response.send_message("❌ Il tuo personaggio non ha abbastanza Ȼ.", ephemeral=True)
+            await interaction.response.send_message("❌ Il tuo PG non ha abbastanza Ȼ.", ephemeral=True)
             return
 
-        # Menu a tendina per scegliere il destinatario
-        view = discord.ui.View(timeout=60)
-        select = discord.ui.Select(
-            placeholder="Scegli il PG destinatario",
-            options=[discord.SelectOption(label=nome, value=f"{pg_id}|{discord_id}") for nome, pg_id, discord_id in self.destinatari]
+        # Recupera saldo destinatario
+        dest_pg = requests.get(f"https://api.notion.com/v1/pages/{self.destinatario_id}", headers=HEADERS).json()
+        saldo_dest = dest_pg["properties"]["Croniri"]["number"]
+
+        # Saldi aggiornati
+        nuovo_mittente = self.mittente_saldo - importo
+        nuovo_dest = saldo_dest + importo
+
+        # Applica le modifiche
+        requests.patch(f"https://api.notion.com/v1/pages/{self.mittente_id}", headers=HEADERS,
+                       json={"properties": {"Croniri": {"number": nuovo_mittente}}})
+        requests.patch(f"https://api.notion.com/v1/pages/{self.destinatario_id}", headers=HEADERS,
+                       json={"properties": {"Croniri": {"number": nuovo_dest}}})
+
+        # Crea la transazione
+        tx_payload = {
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
+                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+                "Importo": {"number": importo},
+                "Mittente": {"relation": [{"id": self.mittente_id}]},
+                "Destinatario": {"relation": [{"id": self.destinatario_id}]},
+                "Descrizione": {"rich_text": [{"text": {"content": self.causale.value.strip()}}]} if self.causale.value.strip() else {}
+            }
+        }
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+
+        # Notifica mittente
+        await interaction.response.send_message(
+            f"✅ Hai trasferito Ȼ{importo} a <@{self.destinatario_discord}> ({self.destinatario_nome})." +
+            (f"\n📄 Causale: {self.causale.value}" if self.causale.value.strip() else ""),
+            ephemeral=True
         )
 
-        async def destinatario_callback(inter2: discord.Interaction):
-            if inter2.user.id != interaction.user.id:
-                await inter2.response.send_message("❌ Non sei autorizzato.", ephemeral=True)
-                return
+        # Notifica destinatario in DM
+        utente_dest = interaction.client.get_user(int(self.destinatario_discord))
+        if utente_dest:
+            try:
+                await utente_dest.send(
+                    f"📥 Hai ricevuto Ȼ{importo} da <@{interaction.user.id}> ({self.mittente_nome})." +
+                    (f"\n📄 Causale: {self.causale.value}" if self.causale.value.strip() else "")
+                )
+            except discord.Forbidden:
+                print(f"⚠️ DM non inviabile a {self.destinatario_discord}")
 
-            selection = select.values[0]
-            destinatario_id, discord_dest_id = selection.split("|")
-            destinatario_pg = next(pg for pg in self.destinatari if pg[1] == destinatario_id)
-            destinatario_nome = destinatario_pg[0]
-
-            # Prendi saldo attuale destinatario
-            res = requests.get(f"https://api.notion.com/v1/pages/{destinatario_id}", headers=HEADERS)
-            saldo_dest = res.json()["properties"]["Croniri"]["number"]
-            nuovo_mittente = self.mittente_saldo - importo
-            nuovo_dest = saldo_dest + importo
-
-            # Aggiorna saldi
-            requests.patch(f"https://api.notion.com/v1/pages/{self.mittente_id}",
-                           headers=HEADERS,
-                           json={"properties": {"Croniri": {"number": nuovo_mittente}}})
-            requests.patch(f"https://api.notion.com/v1/pages/{destinatario_id}",
-                           headers=HEADERS,
-                           json={"properties": {"Croniri": {"number": nuovo_dest}}})
-
-            # Log Notion
-            tx_payload = {
-                "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-                "properties": {
-                    "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                    "Importo": {"number": importo},
-                    "Mittente": {"relation": [{"id": self.mittente_id}]},
-                    "Destinatario": {"relation": [{"id": destinatario_id}]},
-                    "Descrizione": {"rich_text": [{"text": {"content": self.causale.value.strip()}}]} if self.causale.value.strip() else {}
-                }
-            }
-            requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
-
-            # Notifica mittente
-            await inter2.response.send_message(
-                f"✅ Hai trasferito Ȼ{importo} a <@{discord_dest_id}> ({destinatario_nome})." +
-                (f"\n📄 Causale: {self.causale.value}" if self.causale.value.strip() else ""),
-                ephemeral=True
-            )
-
-            # Notifica destinatario
-            utente_dest = interaction.client.get_user(int(discord_dest_id))
-            if utente_dest:
-                try:
-                    await utente_dest.send(
-                        f"📥 Hai ricevuto Ȼ{importo} da <@{interaction.user.id}> ({self.mittente_nome})." +
-                        (f"\n📄 Causale: {self.causale.value}" if self.causale.value.strip() else "")
-                    )
-                except discord.Forbidden:
-                    print(f"❌ Impossibile mandare DM a {discord_dest_id}")
-
-        select.callback = destinatario_callback
-        view.add_item(select)
-        await interaction.followup.send("Scegli il destinatario:", view=view, ephemeral=True)
 
 
 # CODICI PER DEPLOY:
