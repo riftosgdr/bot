@@ -469,29 +469,17 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-        await interaction.response.send_message(
-            f"✅ {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n"
-            f"📄 Causale: {self.causale.value.strip()}",
-            ephemeral=True
-        )
+    # Messaggio ai due user
+        mittente_msg = f"📤 {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n📄 Causale: {self.causale.value.strip()}"
+        destinatario_msg = f"📥 {self.destinatario_nome} (<@{self.destinatario_user_id}>) ha ricevuto Ȼ{importo} da {self.mittente_nome} (<@{interaction.user.id}>).\n📄 Causale: {self.causale.value.strip()}"
+
+        await interaction.response.send_message(mittente_msg, ephemeral=True)
 
         try:
             destinatario_user = await interaction.client.fetch_user(int(self.destinatario_user_id))
-            channel = await interaction.guild.create_text_channel(
-                name=f"transazione-{self.mittente_nome.lower()}-{self.destinatario_nome.lower()}",
-                overwrites={
-                    interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                    interaction.user: discord.PermissionOverwrite(view_channel=True),
-                    destinatario_user: discord.PermissionOverwrite(view_channel=True)
-                },
-                reason="Transazione privata"
-            )
-            await channel.send(
-                f"🔄 **{self.mittente_nome}** (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a **{self.destinatario_nome}** (<@{self.destinatario_user_id}>)\n"
-                f"📄 Causale: {self.causale.value.strip()}"
-            )
+            await destinatario_user.send(destinatario_msg)
         except Exception as e:
-            print(f"Errore nella creazione del canale privato: {e}")
+            print(f"Errore nell'invio del messaggio al destinatario: {e}")
 
 
 # CODICI PER DEPLOY:
