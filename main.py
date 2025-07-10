@@ -420,24 +420,31 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-        await interaction.response.send_message(
-            f"✅ Hai trasferito Ȼ{importo} da **{self.mittente_nome}** a **{self.destinatario_nome}**.",
-            ephemeral=True
-        )
+   # AGGIORNAMENTO NELLA RISPOSTA DEL MESSAGGIO DOPO IL TRASFERIMENTO:
+await interaction.response.send_message(
+    f"✅ {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n"
+    f"📄 Causale: {self.causale.value.strip()}",
+    ephemeral=True  # visibile solo a chi ha fatto l'interazione
+)
 
-        # Messaggi in DM
-        mittente_user = interaction.user
-        try:
-            await mittente_user.send(f"📤 Hai trasferito Ȼ{importo} a **{self.destinatario_nome}**.\n✏️ Causale: {self.causale.value.strip()}")
-        except:
-            pass
+# INVIO MESSAGGIO VISIBILE SOLO A LORO DUE
+try:
+    channel = await interaction.guild.create_text_channel(
+        name=f"transazione-{self.mittente_nome.lower()}-{self.destinatario_nome.lower()}",
+        overwrites={
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            interaction.user: discord.PermissionOverwrite(view_channel=True),
+            await interaction.client.fetch_user(int(self.destinatario_user_id)): discord.PermissionOverwrite(view_channel=True)
+        },
+        reason="Transazione privata"
+    )
 
-        if self.destinatario_user_id:
-            try:
-                destinatario_user = await interaction.client.fetch_user(int(self.destinatario_user_id))
-                await destinatario_user.send(f"📥 Hai ricevuto Ȼ{importo} da **{self.mittente_nome}**.\n✏️ Causale: {self.causale.value.strip()}")
-            except:
-                pass
+    await channel.send(
+        f"🔄 **{self.mittente_nome}** (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a **{self.destinatario_nome}** (<@{self.destinatario_user_id}>)\n"
+        f"📄 Causale: {self.causale.value.strip()}"
+    )
+except Exception as e:
+    print(f"Errore nella creazione del canale privato: {e}")
 
 
 
