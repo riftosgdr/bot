@@ -469,8 +469,8 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
         messaggio_pubblico = (
-            f"🔁 <@{interaction.user.id}> (**{self.mittente_nome}**) ha trasferito Ȼ{importo} a "
-            f"<@{self.destinatario_user_id}> (**{self.destinatario_nome}**).\n"
+            f"💸 **{self.mittente_nome}** ha trasferito Ȼ{importo} a "
+            f" **{self.destinatario_nome}**. (<@{interaction.user.id}>, <@{self.destinatario_user_id}>)\n"
             f"📄 Causale: {self.causale.value.strip()}"
         )
 
