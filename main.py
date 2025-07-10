@@ -423,8 +423,8 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
 
         user_key = f"{interaction.user.id}-{self.mittente_id}-{self.destinatario_id}"
         now = datetime.utcnow().timestamp()
-        if user_key in self.recent_transactions and now - self.recent_transactions[user_key] < 10:
-            await interaction.followup.send("⏳ Aspetta qualche secondo prima di rifare una transazione simile.", ephemeral=True)
+        if user_key in self.recent_transactions and now - self.recent_transactions[user_key] < 60:
+            await interaction.followup.send("⏳ Aspetta 1 minuto prima di rifare una transazione simile.", ephemeral=True)
             return
         self.recent_transactions[user_key] = now
 
@@ -438,7 +438,7 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             await interaction.followup.send("❌ L'importo minimo trasferibile è 1 Ȼ.", ephemeral=True)
             return
         if importo > self.mittente_saldo:
-            await interaction.followup.send("❌ Il tuo personaggio non ha abbastanza Ȼ.", ephemeral=True)
+            await interaction.followup.send("❌ Il tuo personaggio non ha abbastanza Croniri.", ephemeral=True)
             return
 
         # Aggiorna saldi
@@ -473,16 +473,18 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
         # Messaggio ai due user
-        mittente_msg = f"📤 {self.mittente_nome} (<@{interaction.user.id}>) ha trasferito Ȼ{importo} a {self.destinatario_nome} (<@{self.destinatario_user_id}>).\n📄 Causale: {self.causale.value.strip()}"
-        destinatario_msg = f"📥 {self.destinatario_nome} (<@{self.destinatario_user_id}>) ha ricevuto Ȼ{importo} da {self.mittente_nome} (<@{interaction.user.id}>).\n📄 Causale: {self.causale.value.strip()}"
+      mittente_msg = (
+    f"💸 <@{interaction.user.id}> (**{self.mittente_nome}**) ha trasferito Ȼ{importo} a "
+    f"<@{self.destinatario_user_id}> (**{self.destinatario_nome}**).\n"
+    f"📄 Causale: {self.causale.value.strip()}"
+)
 
-        await interaction.followup.send(mittente_msg, ephemeral=True)
+# Invia nella chat attuale, visibile a tutti
+await interaction.channel.send(mittente_msg)
 
-        try:
-            destinatario_user = await interaction.client.fetch_user(int(self.destinatario_user_id))
-            await destinatario_user.send(destinatario_msg)
-        except Exception as e:
-            print(f"Errore nell'invio del messaggio al destinatario: {e}")
+# Risposta ephemeral per confermare l'invio al mittente
+await interaction.response.send_message("✅ Transazione completata e notificata nella chat.", ephemeral=True)
+
 
 # CODICI PER DEPLOY:
 
