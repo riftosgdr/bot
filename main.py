@@ -478,14 +478,34 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
 
 #GRATTA I SANTI
 
+class GrattaSelect(discord.ui.View):
+    def __init__(self, pg_list, interaction_user_id):
+        super().__init__(timeout=60)
+        self.pg_map = {pg['properties']['Nome PG']['rich_text'][0]['text']['content']: pg for pg in pg_list}
+        options = [
+            discord.SelectOption(label=pg_name, description="Gioca con questo PG")
+            for pg_name in self.pg_map.keys()
+        ]
+        self.select = discord.ui.Select(placeholder="Scegli il personaggio", options=options)
+        self.select.callback = self.select_callback
+        self.add_item(self.select)
+        self.interaction_user_id = interaction_user_id
+
+    async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.interaction_user_id:
+            await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
+            return
+
+        pg_name = self.select.values[0]
+        pg = self.pg_map[pg_name]
+        await grattaisanti_gioca(interaction, pg)
 
 @tree.command(name="grattaisanti", description="Gratta i Santi e prova a vincere!")
 async def grattaisanti(interaction: discord.Interaction):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
 
     user_id = str(interaction.user.id)
 
-    # Ottieni il PG collegato all'utente
     query = {
         "filter": {
             "property": "ID Discord",
@@ -496,16 +516,22 @@ async def grattaisanti(interaction: discord.Interaction):
     data = response.json().get("results", [])
 
     if not data:
-        await interaction.followup.send("❌ Non hai alcun personaggio associato al tuo account.")
+        await interaction.followup.send("❌ Non hai alcun personaggio associato al tuo account.", ephemeral=True)
         return
 
-    pg = data[0]
+    if len(data) == 1:
+        await grattaisanti_gioca(interaction, data[0])
+    else:
+        view = GrattaSelect(data, interaction.user.id)
+        await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=view, ephemeral=True)
+
+async def grattaisanti_gioca(interaction: discord.Interaction, pg):
     nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
     saldo = pg["properties"]["Croniri"]["number"] or 0
 
     costo_gioco = 5
     if saldo < costo_gioco:
-        await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Ȼ per partecipare (servono {costo_gioco}).")
+        await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Ȼ per partecipare (servono {costo_gioco}).", ephemeral=True)
         return
 
     nuovo_saldo = saldo - costo_gioco
@@ -551,7 +577,6 @@ async def grattaisanti(interaction: discord.Interaction):
             vincita = 0
             messaggio = "❌ Niente vincita stavolta."
 
-    # Se c'è vincita, aggiorna saldo
     if vincita > 0:
         nuovo_saldo += vincita
         requests.patch(
@@ -560,7 +585,7 @@ async def grattaisanti(interaction: discord.Interaction):
             json={"properties": {"Croniri": {"number": nuovo_saldo}}}
         )
 
-    embed = discord.Embed(title="🎫 Gratta i Santi", color=discord.Color.green())
+    embed = discord.Embed(title="🎫 Gratta i Santi", color=discord.Color.gold())
     embed.add_field(name="🧩 Santi estratti:", value=", ".join(nomi), inline=False)
     embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
     embed.set_footer(text=f"Saldo attuale di {nome_pg}: Ȼ{nuovo_saldo}")
