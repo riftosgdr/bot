@@ -500,7 +500,7 @@ class GrattaSelect(discord.ui.View):
         pg = self.pg_map[pg_name]
         await interaction.response.send_modal(GrattaSantiModal(pg))
 
-@tree.command(name="grattaisanti", description="Gratta i Santi e prova a vincere!")
+@tree.command(name="grattaisanti", description="Gioca a 'Gratta i Santi' e prova a vincere Croniri!")
 async def grattaisanti(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -525,7 +525,7 @@ async def grattaisanti(interaction: discord.Interaction):
         view = GrattaSelect(data, interaction.user.id)
         await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=view, ephemeral=True)
 
-class GrattaSantiModal(discord.ui.Modal, title="Gratta i Santi - Inserisci la puntata"):
+class GrattaSantiModal(discord.ui.Modal, title="Inserisci la puntata:"):
     def __init__(self, pg):
         super().__init__()
         self.pg = pg
@@ -547,7 +547,7 @@ class GrattaSantiModal(discord.ui.Modal, title="Gratta i Santi - Inserisci la pu
             return
 
         if saldo < puntata:
-            await interaction.response.send_message(f"❌ {nome_pg} non ha abbastanza Ȼ per questa puntata.", ephemeral=True)
+            await interaction.response.send_message(f"❌ {nome_pg} non ha abbastanza Croniri per questa puntata.", ephemeral=True)
             return
 
         nuovo_saldo = saldo - puntata
@@ -576,10 +576,10 @@ class GrattaSantiModal(discord.ui.Modal, title="Gratta i Santi - Inserisci la pu
 
         if set(nomi) == cardinali:
             moltiplicatore = 5
-            messaggio = "💥 JACKPOT! Hai trovato tutti i santi Cardinali!"
+            messaggio = "🚀 WOW! Hai trovato tutti i Santi Cardinali!"
         elif set(nomi) == diagonali:
             moltiplicatore = 3
-            messaggio = "🎁 Buona vincita! Tutti i santi Diagonali!"
+            messaggio = "🎉 Ottima vincita! Hai trovato tutti i Santi Diagonali!"
         else:
             conteggio = {}
             for direz in direzioni:
@@ -588,10 +588,10 @@ class GrattaSantiModal(discord.ui.Modal, title="Gratta i Santi - Inserisci la pu
                         conteggio[punto] = conteggio.get(punto, 0) + 1
             if any(v >= 3 for v in conteggio.values()):
                 moltiplicatore = 1.5
-                messaggio = "🪙 Vincita minore: 3 santi allineati per punto cardinale."
+                messaggio = "🪙 Vincita minore! Hai ottenuto 3 Santi allineati per punto cardinale."
             else:
                 moltiplicatore = 0
-                messaggio = "❌ Niente vincita stavolta."
+                messaggio = "❌ Ritenta! Sarai più fortunato"
 
         vincita = int(puntata * moltiplicatore)
         if vincita > 0:
@@ -612,13 +612,13 @@ class GrattaSantiModal(discord.ui.Modal, title="Gratta i Santi - Inserisci la pu
             })
 
         embed = discord.Embed(title="🎫 Gratta i Santi", color=discord.Color.gold())
-        embed.add_field(name="🧩 Santi estratti:", value=" | ".join(nomi), inline=False)
+        embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
         embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
         embed.add_field(name="💰 Puntata:", value=f"Ȼ{puntata}", inline=True)
         embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
-        embed.set_footer(text=f"Saldo attuale di {nome_pg}: Ȼ{nuovo_saldo}")
+        embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.channel.send(embed=embed)
 
 
 
