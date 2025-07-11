@@ -476,6 +476,96 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
 
         await interaction.channel.send(messaggio_pubblico)
 
+#GRATTA I SANTI
+
+
+@tree.command(name="grattaisanti", description="Gratta i Santi e prova a vincere!")
+async def grattaisanti(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    user_id = str(interaction.user.id)
+
+    # Ottieni il PG collegato all'utente
+    query = {
+        "filter": {
+            "property": "ID Discord",
+            "rich_text": {"equals": user_id}
+        }
+    }
+    response = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS, json=query)
+    data = response.json().get("results", [])
+
+    if not data:
+        await interaction.followup.send("❌ Non hai alcun personaggio associato al tuo account.")
+        return
+
+    pg = data[0]
+    nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+    saldo = pg["properties"]["Croniri"]["number"] or 0
+
+    costo_gioco = 5
+    if saldo < costo_gioco:
+        await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Ȼ per partecipare (servono {costo_gioco}).")
+        return
+
+    nuovo_saldo = saldo - costo_gioco
+    requests.patch(
+        f"https://api.notion.com/v1/pages/{pg['id']}",
+        headers=HEADERS,
+        json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+    )
+
+    santi = {
+        "San Giorgiorgio": "Nord",
+        "Santa Salina": "Est",
+        "San Meccano": "Sud",
+        "Santa Sciarada": "Ovest",
+        "Santa Annina": "Nord-Est",
+        "San Iroscio": "Sud-Est",
+        "Santa Miralia": "Sud-Ovest",
+        "San Abelio": "Nord-Ovest"
+    }
+
+    cardinali = {"San Giorgiorgio", "Santa Salina", "San Meccano", "Santa Sciarada"}
+    diagonali = {"Santa Annina", "San Iroscio", "Santa Miralia", "San Abelio"}
+    estratti = random.sample(list(santi.items()), 4)
+    nomi = [nome for nome, _ in estratti]
+    direzioni = [direz for _, direz in estratti]
+
+    if set(nomi) == cardinali:
+        vincita = 50
+        messaggio = "💥 JACKPOT! Hai trovato tutti i santi Cardinali!"
+    elif set(nomi) == diagonali:
+        vincita = 25
+        messaggio = "🎁 Buona vincita! Tutti i santi Diagonali!"
+    else:
+        conteggio = {}
+        for direz in direzioni:
+            for punto in ["Nord", "Sud", "Est", "Ovest"]:
+                if punto in direz:
+                    conteggio[punto] = conteggio.get(punto, 0) + 1
+        if any(v >= 3 for v in conteggio.values()):
+            vincita = 10
+            messaggio = "🪙 Vincita minore: 3 santi allineati per punto cardinale."
+        else:
+            vincita = 0
+            messaggio = "❌ Niente vincita stavolta."
+
+    # Se c'è vincita, aggiorna saldo
+    if vincita > 0:
+        nuovo_saldo += vincita
+        requests.patch(
+            f"https://api.notion.com/v1/pages/{pg['id']}",
+            headers=HEADERS,
+            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+        )
+
+    embed = discord.Embed(title="🎫 Gratta i Santi", color=discord.Color.green())
+    embed.add_field(name="🧩 Santi estratti:", value=", ".join(nomi), inline=False)
+    embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
+    embed.set_footer(text=f"Saldo attuale di {nome_pg}: Ȼ{nuovo_saldo}")
+
+    await interaction.followup.send(embed=embed)
 
 # CODICI PER DEPLOY:
 
