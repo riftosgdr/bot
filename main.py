@@ -531,7 +531,7 @@ async def grattaisanti_gioca(interaction: discord.Interaction, pg):
 
     costo_gioco = 5
     if saldo < costo_gioco:
-        await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Ȼ per partecipare (servono {costo_gioco}).", ephemeral=True)
+        await interaction.response.send_message(f"❌ {nome_pg} non ha abbastanza Ȼ per partecipare (servono {costo_gioco}).", ephemeral=True)
         return
 
     nuovo_saldo = saldo - costo_gioco
@@ -590,7 +590,8 @@ async def grattaisanti_gioca(interaction: discord.Interaction, pg):
     embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
     embed.set_footer(text=f"Saldo attuale di {nome_pg}: Ȼ{nuovo_saldo}")
 
-    await interaction.followup.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
+
 
 # CODICI PER DEPLOY:
 
