@@ -477,77 +477,48 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         await interaction.channel.send(messaggio_pubblico)
 
 #GRATTA I SANTI
-
-class GrattaSelect(discord.ui.View):
-    def __init__(self, pg_list, interaction_user_id):
+class GrattaSantiView(discord.ui.View):
+    def __init__(self, pg, user_id):
         super().__init__(timeout=60)
-        self.pg_map = {pg['properties']['Nome PG']['rich_text'][0]['text']['content']: pg for pg in pg_list}
-        options = [
-            discord.SelectOption(label=pg_name, description="Gioca con questo PG")
-            for pg_name in self.pg_map.keys()
-        ]
-        self.select = discord.ui.Select(placeholder="Scegli il personaggio", options=options)
+        self.pg = pg
+        self.user_id = user_id
+        self.importo = 10  # default
+
+        self.select = discord.ui.Select(
+            placeholder="Scegli quanto vuoi puntare",
+            options=[
+                discord.SelectOption(label="10 Ȼ", value="10"),
+                discord.SelectOption(label="20 Ȼ", value="20"),
+                discord.SelectOption(label="50 Ȼ", value="50")
+            ]
+        )
         self.select.callback = self.select_callback
         self.add_item(self.select)
-        self.interaction_user_id = interaction_user_id
+
+        self.gratta_button = discord.ui.Button(label="Gratta!", style=discord.ButtonStyle.primary)
+        self.gratta_button.callback = self.submit
+        self.add_item(self.gratta_button)
 
     async def select_callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.interaction_user_id:
-            await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
+            return
+        self.importo = int(self.select.values[0])
+        await interaction.response.defer()
+
+    async def submit(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
             return
 
-        pg_name = self.select.values[0]
-        pg = self.pg_map[pg_name]
-        await interaction.response.send_modal(GrattaSantiModal(pg))
+        await interaction.response.defer(thinking=True)
 
-@tree.command(name="grattaisanti", description="Gioca a 'Gratta i Santi' e prova a vincere Croniri!")
-async def grattaisanti(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
-    user_id = str(interaction.user.id)
-
-    query = {
-        "filter": {
-            "property": "ID Discord",
-            "rich_text": {"equals": user_id}
-        }
-    }
-    response = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS, json=query)
-    data = response.json().get("results", [])
-
-    if not data:
-        await interaction.followup.send("❌ Non hai alcun personaggio associato al tuo account.", ephemeral=True)
-        return
-
-    if len(data) == 1:
-        await interaction.response.send_modal(GrattaSantiModal(data[0]))
-    else:
-        view = GrattaSelect(data, interaction.user.id)
-        await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=view, ephemeral=True)
-
-class GrattaSantiModal(discord.ui.Modal, title="Inserisci la puntata:"):
-    def __init__(self, pg):
-        super().__init__()
-        self.pg = pg
-        self.importo = discord.ui.TextInput(label="Importo da puntare", placeholder="Minimo 10", required=True)
-        self.add_item(self.importo)
-
-    async def on_submit(self, interaction: discord.Interaction):
         nome_pg = self.pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
         saldo = self.pg["properties"]["Croniri"]["number"] or 0
-
-        try:
-            puntata = int(self.importo.value.strip())
-        except ValueError:
-            await interaction.response.send_message("❌ Inserisci un numero valido.", ephemeral=True)
-            return
-
-        if puntata < 10:
-            await interaction.response.send_message("❌ La puntata minima è 10 Ȼ.", ephemeral=True)
-            return
+        puntata = self.importo
 
         if saldo < puntata:
-            await interaction.response.send_message(f"❌ {nome_pg} non ha abbastanza Croniri per questa puntata.", ephemeral=True)
+            await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Croniri per questa puntata.", ephemeral=True)
             return
 
         nuovo_saldo = saldo - puntata
@@ -579,7 +550,7 @@ class GrattaSantiModal(discord.ui.Modal, title="Inserisci la puntata:"):
             messaggio = "🚀 WOW! Hai trovato tutti i Santi Cardinali!"
         elif set(nomi) == diagonali:
             moltiplicatore = 3
-            messaggio = "🎉 Ottima vincita! Hai trovato tutti i Santi Diagonali!"
+            messaggio = "🎉 Ottima vincita! Tutti i Santi Diagonali!"
         else:
             conteggio = {}
             for direz in direzioni:
@@ -588,12 +559,13 @@ class GrattaSantiModal(discord.ui.Modal, title="Inserisci la puntata:"):
                         conteggio[punto] = conteggio.get(punto, 0) + 1
             if any(v >= 3 for v in conteggio.values()):
                 moltiplicatore = 1.5
-                messaggio = "🪙 Vincita minore! Hai ottenuto 3 Santi allineati per punto cardinale."
+                messaggio = "🪙 Vincita minore! 3 santi allineati per punto cardinale."
             else:
                 moltiplicatore = 0
-                messaggio = "❌ Ritenta! Sarai più fortunato"
+                messaggio = "❌ Ritenta!"
 
         vincita = int(puntata * moltiplicatore)
+
         if vincita > 0:
             nuovo_saldo += vincita
             requests.patch(
@@ -611,12 +583,27 @@ class GrattaSantiModal(discord.ui.Modal, title="Inserisci la puntata:"):
                 }
             })
 
+        # Transazione sempre
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
+                "Data": {"date": {"start": datetime.utcnow().isoformat() }},
+                "Importo": {"number": -puntata},
+                "Causale": {"rich_text": [{"text": {"content": f"Puntata grattaisanti da {nome_pg}"}}]},
+                "Mittente": {"relation": [{"id": self.pg["id"]}]},
+                "Destinatario": {"rich_text": [{"text": {"content": "Gratta i Santi"}}]}
+            }
+        })
+
         embed = discord.Embed(title="🎫 Gratta i Santi", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
         embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
         embed.add_field(name="💰 Puntata:", value=f"Ȼ{puntata}", inline=True)
         embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
+
+        await interaction.followup.send(embed=embed)
+
 
         await interaction.channel.send(embed=embed)
 
