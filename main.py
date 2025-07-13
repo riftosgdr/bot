@@ -477,12 +477,66 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         await interaction.channel.send(messaggio_pubblico)
 
 #GRATTA I SANTI
+
+# Comando slash per Gratta i Santi
+@tree.command(name="gratta", description="Tenta la fortuna con Gratta i Santi")
+async def gratta(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    discord_id = str(interaction.user.id)
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    payload = {
+        "filter": {
+            "property": "ID Discord",
+            "rich_text": {"equals": discord_id}
+        }
+    }
+    res = requests.post(url, headers=HEADERS, json=payload)
+    data = res.json()
+
+    personaggi = data.get("results", [])
+    if not personaggi:
+        await interaction.followup.send("❌ Nessun PG trovato collegato al tuo ID Discord.", ephemeral=True)
+        return
+
+    if len(personaggi) == 1:
+        pg = personaggi[0]
+        view = GrattaSantiView(pg, interaction.user.id)
+        await interaction.followup.send("🎰 Seleziona la puntata e gratta i santi!", view=view, ephemeral=True)
+    else:
+        mapping = {}
+        options = []
+        for pg in personaggi:
+            nome = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+            mapping[nome] = pg
+            options.append(discord.SelectOption(label=nome, value=nome))
+
+        class SelezionePG(discord.ui.View):
+            def __init__(self, user_id):
+                super().__init__(timeout=60)
+                self.user_id = user_id
+                self.select = discord.ui.Select(placeholder="Scegli il PG", options=options)
+                self.select.callback = self.callback
+                self.add_item(self.select)
+
+            async def callback(self, i: discord.Interaction):
+                if i.user.id != self.user_id:
+                    await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
+                    return
+                nome = self.select.values[0]
+                pg = mapping[nome]
+                view = GrattaSantiView(pg, self.user_id)
+                await i.response.edit_message(content="🎰 Seleziona la puntata e gratta i santi!", view=view)
+
+        await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
+
+
 class GrattaSantiView(discord.ui.View):
     def __init__(self, pg, user_id):
         super().__init__(timeout=60)
         self.pg = pg
         self.user_id = user_id
-        self.importo = 10  # default
+        self.importo = 10
 
         self.select = discord.ui.Select(
             placeholder="Scegli quanto vuoi puntare",
@@ -576,18 +630,17 @@ class GrattaSantiView(discord.ui.View):
             requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
                 "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
                 "properties": {
-                    "Data": {"date": {"start": datetime.utcnow().isoformat() }},
+                    "Data": {"date": {"start": datetime.utcnow().isoformat()}},
                     "Importo": {"number": vincita},
                     "Causale": {"rich_text": [{"text": {"content": f"Vincita grattaisanti da {nome_pg}"}}]},
                     "Destinatario": {"relation": [{"id": self.pg["id"]}]}
                 }
             })
 
-        # Transazione sempre
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
             "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
             "properties": {
-                "Data": {"date": {"start": datetime.utcnow().isoformat() }},
+                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
                 "Importo": {"number": -puntata},
                 "Causale": {"rich_text": [{"text": {"content": f"Puntata grattaisanti da {nome_pg}"}}]},
                 "Mittente": {"relation": [{"id": self.pg["id"]}]},
@@ -604,8 +657,6 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
-
-        await interaction.channel.send(embed=embed)
 
 
 
