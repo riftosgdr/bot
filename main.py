@@ -657,6 +657,7 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
+
 # === LIVELLAMENTO PG ===
 
 ABILITA_LIST = [
@@ -669,15 +670,14 @@ ABILITA_LIST = [
 TRATTI_PREGI = ["Intelligente", "Coraggioso", "Empatico"]
 TRATTI_DIFETTI = ["Impulsivo", "Distratto", "Testardo"]
 
-LIVELLI = {
-    "Livello I": 1,
-    "Livello II": 2,
-    "Livello III": 3,
-    "Livello IV": 4,
-    "Livello V": 5,
-    "Livello VI": 6
+INV_LIVELLI = {
+    1: "Livello I",
+    2: "Livello II",
+    3: "Livello III",
+    4: "Livello IV",
+    5: "Livello V",
+    6: "Livello VI"
 }
-INV_LIVELLI = {v: k for k, v in LIVELLI.items()}
 
 class EndRoleView(discord.ui.View):
     def __init__(self, pg_list, user_id):
@@ -709,8 +709,7 @@ class EndRoleSelect(discord.ui.Select):
         now = datetime.utcnow()
         role_count = (pg["properties"].get("Role", {}).get("number") or 0) + 1
 
-        livello_field = pg["properties"].get("Livello", {}).get("multi_select", [])
-        livello = max((LIVELLI.get(lv["name"], 1) for lv in livello_field), default=1)
+        livello = pg["properties"].get("Level", {}).get("number", 1)
 
         requests.patch(
             f"https://api.notion.com/v1/pages/{pg_id}",
@@ -790,8 +789,7 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
     async def on_submit(self, interaction: discord.Interaction):
         now = datetime.utcnow()
         nome_pg = self.pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-        livello_field = self.pg["properties"].get("Livello", {}).get("multi_select", [])
-        livello = max((LIVELLI.get(lv["name"], 1) for lv in livello_field), default=1)
+        livello = self.pg["properties"].get("Level", {}).get("number", 1)
 
         if livello >= 6:
             await interaction.response.send_message("❌ Questo personaggio è già al livello massimo.", ephemeral=True)
@@ -809,8 +807,8 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
             current = self.pg["properties"].get(abilita, {}).get("number", 0)
             updates[abilita] = {"number": current + aumento}
 
-        livello_successivo = INV_LIVELLI[livello + 1]
-        updates["Livello"] = {"multi_select": [{"name": livello_successivo}]}
+        livello_successivo = livello + 1
+        updates["Level"] = {"number": livello_successivo}
         updates["Ultimo Level Up"] = {"date": {"start": now.date().isoformat()}}
         updates["Level Up"] = {"checkbox": False}
         updates["Role"] = {"number": 0}
@@ -825,7 +823,7 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
         requests.patch(f"https://api.notion.com/v1/pages/{self.pg['id']}", headers=HEADERS, json={"properties": updates})
 
         await interaction.response.send_message(
-            f"✅ **{nome_pg}** è salito al {livello_successivo}!\nI punti abilità sono stati assegnati. Contatta lo staff per validare eventuali pregi/difetti.",
+            f"✅ **{nome_pg}** è salito al {INV_LIVELLI[livello_successivo]}!\nI punti abilità sono stati assegnati. Contatta lo staff per validare eventuali pregi/difetti.",
             ephemeral=True
         )
 
@@ -848,6 +846,7 @@ async def end(interaction: discord.Interaction):
         await view.callback(interaction)
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
+
 
 # CODICI PER DEPLOY:
 
