@@ -657,6 +657,154 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
+# === LIVELLAMENTO PG ===
+
+class EndRoleView(discord.ui.View):
+    def __init__(self, pg_list, user_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        options = [
+            discord.SelectOption(label=pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"], value=pg["id"])
+            for pg in pg_list
+        ]
+        self.add_item(EndRoleSelect(options, pg_list, user_id))
+
+class EndRoleSelect(discord.ui.Select):
+    def __init__(self, options, pg_list, user_id):
+        super().__init__(placeholder="Scegli il PG per cui concludi la giocata", min_values=1, max_values=1, options=options)
+        self.pg_list = pg_list
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
+            return
+
+        pg_id = self.values[0]
+        pg = next(p for p in self.pg_list if p["id"] == pg_id)
+        nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+
+        now = datetime.utcnow()
+
+        role_count = pg["properties"].get("Role", {}).get("number", 0) + 1
+        requests.patch(
+            f"https://api.notion.com/v1/pages/{pg_id}",
+            headers=HEADERS,
+            json={
+                "properties": {
+                    "Ultima Role": {"date": {"start": now.isoformat()}},
+                    "Role": {"number": role_count}
+                }
+            }
+        )
+
+        # Controlla se può livellare
+        livello = pg["properties"].get("Livello", {}).get("number", 1)
+        last_level_up = pg["properties"].get("Ultimo Level Up", {}).get("date", {}).get("start")
+        last_date = datetime.strptime(last_level_up, "%Y-%m-%d") if last_level_up else now
+        giorni_passati = (now - last_date).days
+
+        requisiti = {
+            1: (15, 2),
+            2: (15, 2),
+            3: (30, 3),
+            4: (45, 5),
+            5: (75, 5),
+        }
+
+        if livello in requisiti:
+            giorni, ruolate = requisiti[livello]
+            if giorni_passati >= giorni and role_count >= ruolate:
+                requests.patch(
+                    f"https://api.notion.com/v1/pages/{pg_id}",
+                    headers=HEADERS,
+                    json={"properties": {"Level Up": {"checkbox": True}}}
+                )
+                await interaction.response.send_message(
+                    f"📈 **{nome_pg}** ha raggiunto i requisiti per il Livello {livello + 1}!\nUsa il bottone qui sotto per assegnare i punti abilità e scegliere i tratti.",
+                    view=LivellaButton(pg), ephemeral=True
+                )
+                return
+
+        await interaction.response.send_message(f"✅ Giocata registrata per {nome_pg}. Totale role: {role_count}.", ephemeral=True)
+
+
+class LivellaButton(discord.ui.View):
+    def __init__(self, pg):
+        super().__init__(timeout=60)
+        self.pg = pg
+        self.add_item(discord.ui.Button(label="Livella PG", style=discord.ButtonStyle.success, custom_id="livella_pg"))
+
+    @discord.ui.button(label="Livella PG", style=discord.ButtonStyle.success)
+    async def livella_pg(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(LivellaModal(self.pg))
+
+
+class LivellaModal(discord.ui.Modal, title="Assegna i 5 punti abilità"):
+    def __init__(self, pg):
+        super().__init__()
+        self.pg = pg
+        self.punti = discord.ui.TextInput(label="Distribuzione Punti (es: Atletica 2, Mira 3)", required=True)
+        self.pregio = discord.ui.TextInput(label="Pregio (facoltativo)", required=False)
+        self.difetto = discord.ui.TextInput(label="Difetto (solo se Livello 3)", required=False)
+        self.add_item(self.punti)
+        self.add_item(self.pregio)
+        self.add_item(self.difetto)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        now = datetime.utcnow()
+        nome_pg = self.pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+        livello = self.pg["properties"].get("Livello", {}).get("number", 1)
+
+        updates = {}
+        distribuiti = self.punti.value.split(",")
+        for voce in distribuiti:
+            try:
+                abilita, valore = voce.strip().rsplit(" ", 1)
+                valore = int(valore)
+                current = self.pg["properties"].get(abilita, {}).get("number", 0)
+                updates[abilita] = {"number": current + valore}
+            except:
+                continue
+
+        updates["Livello"] = {"number": livello + 1}
+        updates["Ultimo Level Up"] = {"date": {"start": now.date().isoformat()}}
+        updates["Level Up"] = {"checkbox": False}
+
+        # Tratti
+        if self.pregio.value:
+            updates["Tratto 7"] = {"multi_select": [{"name": self.pregio.value}]}
+        if self.difetto.value and livello == 3:
+            updates["Tratto 8"] = {"multi_select": [{"name": self.difetto.value}]}
+
+        requests.patch(f"https://api.notion.com/v1/pages/{self.pg['id']}", headers=HEADERS, json={"properties": updates})
+
+        await interaction.response.send_message(
+            f"✅ **{nome_pg}** è salito al livello {livello + 1}!\nI punti abilità sono stati assegnati. Contatta lo staff per validare eventuali pregi/difetti.",
+            ephemeral=True
+        )
+
+
+@tree.command(name="end", description="Concludi una role per un tuo PG")
+async def end(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    user_id = str(interaction.user.id)
+    res = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS, json={
+        "filter": {"property": "ID Discord", "rich_text": {"equals": user_id}}
+    })
+    pg_list = res.json().get("results", [])
+
+    if not pg_list:
+        await interaction.followup.send("❌ Nessun personaggio associato.", ephemeral=True)
+        return
+
+    if len(pg_list) == 1:
+        view = EndRoleSelect([
+            discord.SelectOption(label=pg_list[0]["properties"]["Nome PG"]["rich_text"][0]["text"]["content"], value=pg_list[0]["id"])
+        ], pg_list, interaction.user.id)
+        await view.callback(interaction)
+    else:
+        await interaction.followup.send("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
 
 
 
