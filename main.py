@@ -657,7 +657,6 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
-# === LIVELLAMENTO PG ===
 
 # === LIVELLAMENTO PG ===
 
@@ -737,7 +736,7 @@ class EndRoleSelect(discord.ui.Select):
             5: (75, 5),
         }
 
-        if livello in requisiti and livello < 6:
+        if livello < 6 and livello in requisiti:
             giorni, ruolate = requisiti[livello]
             if giorni_passati >= giorni and role_count >= ruolate:
                 requests.patch(
@@ -809,7 +808,10 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
             current = self.pg["properties"].get(abilita, {}).get("number", 0)
             updates[abilita] = {"number": current + aumento}
 
-        updates["Livello"] = {"multi_select": [{"name": INV_LIVELLI[livello + 1]}]}
+        livelli_attuali = [lv["name"] for lv in livello_field]
+        livello_successivo = INV_LIVELLI[livello + 1]
+        nuovi_livelli = list({*livelli_attuali, livello_successivo})
+        updates["Livello"] = {"multi_select": [{"name": lv} for lv in nuovi_livelli]}
         updates["Ultimo Level Up"] = {"date": {"start": now.date().isoformat()}}
         updates["Level Up"] = {"checkbox": False}
         updates["Role"] = {"number": 0}
@@ -824,7 +826,7 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
         requests.patch(f"https://api.notion.com/v1/pages/{self.pg['id']}", headers=HEADERS, json={"properties": updates})
 
         await interaction.response.send_message(
-            f"✅ **{nome_pg}** è salito al {INV_LIVELLI[livello + 1]}!\nI punti abilità sono stati assegnati. Contatta lo staff per validare eventuali pregi/difetti.",
+            f"✅ **{nome_pg}** è salito al {livello_successivo}!\nI punti abilità sono stati assegnati. Contatta lo staff per validare eventuali pregi/difetti.",
             ephemeral=True
         )
 
@@ -847,7 +849,6 @@ async def end(interaction: discord.Interaction):
         await view.callback(interaction)
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
-
 
 
 
