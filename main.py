@@ -657,7 +657,6 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
-
 # === LIVELLAMENTO PG ===
 
 ABILITA_LIST = [
@@ -667,8 +666,8 @@ ABILITA_LIST = [
     "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
 ]
 
-TRATTI_PREGI = ["Intelligente", "Coraggioso", "Empatico"]  # esempio
-TRATTI_DIFETTI = ["Impulsivo", "Distratto", "Testardo"]  # esempio
+TRATTI_PREGI = ["Intelligente", "Coraggioso", "Empatico"]
+TRATTI_DIFETTI = ["Impulsivo", "Distratto", "Testardo"]
 
 LIVELLI = {
     "Livello I": 1,
@@ -768,22 +767,24 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
 
         abilita_options = [discord.SelectOption(label=skill, value=skill) for skill in ABILITA_LIST]
 
-        self.add_item(discord.ui.Select(placeholder="Punto Abilità 1", options=abilita_options, custom_id="skill_0", row=0))
-        self.add_item(discord.ui.Select(placeholder="Punto Abilità 2", options=abilita_options, custom_id="skill_1", row=0))
-        self.add_item(discord.ui.Select(placeholder="Punto Abilità 3", options=abilita_options, custom_id="skill_2", row=1))
-        self.add_item(discord.ui.Select(placeholder="Punto Abilità 4", options=abilita_options, custom_id="skill_3", row=1))
-        self.add_item(discord.ui.Select(placeholder="Punto Abilità 5", options=abilita_options, custom_id="skill_4", row=2))
+        for i in range(5):
+            self.add_item(discord.ui.Select(
+                placeholder=f"Punto Abilità {i+1}",
+                options=abilita_options,
+                custom_id=f"skill_{i}",
+                row=i
+            ))
 
         self.add_item(discord.ui.Select(
             placeholder="Pregio (facoltativo)",
             options=[discord.SelectOption(label=tratto) for tratto in TRATTI_PREGI],
-            min_values=0, max_values=1, custom_id="pregio", row=3
+            min_values=0, max_values=1, custom_id="pregio", row=5
         ))
 
         self.add_item(discord.ui.Select(
             placeholder="Difetto (solo per livello 3)",
             options=[discord.SelectOption(label=tratto) for tratto in TRATTI_DIFETTI],
-            min_values=0, max_values=1, custom_id="difetto", row=4
+            min_values=0, max_values=1, custom_id="difetto", row=6
         ))
 
     async def on_submit(self, interaction: discord.Interaction):
@@ -808,10 +809,8 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
             current = self.pg["properties"].get(abilita, {}).get("number", 0)
             updates[abilita] = {"number": current + aumento}
 
-        livelli_attuali = [lv["name"] for lv in livello_field]
         livello_successivo = INV_LIVELLI[livello + 1]
-        nuovi_livelli = list({*livelli_attuali, livello_successivo})
-        updates["Livello"] = {"multi_select": [{"name": lv} for lv in nuovi_livelli]}
+        updates["Livello"] = {"multi_select": [{"name": livello_successivo}]}
         updates["Ultimo Level Up"] = {"date": {"start": now.date().isoformat()}}
         updates["Level Up"] = {"checkbox": False}
         updates["Role"] = {"number": 0}
@@ -849,8 +848,6 @@ async def end(interaction: discord.Interaction):
         await view.callback(interaction)
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
-
-
 
 # CODICI PER DEPLOY:
 
