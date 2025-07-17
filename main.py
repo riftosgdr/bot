@@ -657,7 +657,18 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
+
 # === LIVELLAMENTO PG ===
+
+ABILITA_LIST = [
+    "Atletica", "Mira", "Combattimento", "Riflessi", "Robustezza",
+    "Analisi", "Osservare", "Studio", "Cultura", "Tecnica",
+    "Autocontrollo", "Persuasione", "Comando", "Maschera", "Intimidazione",
+    "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
+]
+
+TRATTI_PREGI = ["Intelligente", "Coraggioso", "Empatico"]  # esempio
+TRATTI_DIFETTI = ["Impulsivo", "Distratto", "Testardo"]  # esempio
 
 class EndRoleView(discord.ui.View):
     def __init__(self, pg_list, user_id):
@@ -698,7 +709,6 @@ class EndRoleSelect(discord.ui.Select):
             }
         )
 
-        # Controlla se può livellare
         livello = pg["properties"].get("Livello", {}).get("number", 1)
         last_level_up = pg["properties"].get("Ultimo Level Up", {}).get("date", {}).get("start")
         last_date = datetime.strptime(last_level_up, "%Y-%m-%d") if last_level_up else now
@@ -728,26 +738,38 @@ class EndRoleSelect(discord.ui.Select):
 
         await interaction.response.send_message(f"✅ Giocata registrata per {nome_pg}. Totale role: {role_count}.", ephemeral=True)
 
-
 class LivellaButton(discord.ui.View):
     def __init__(self, pg):
         super().__init__(timeout=60)
         self.pg = pg
-        self.add_item(discord.ui.Button(label="Livella PG", style=discord.ButtonStyle.success, custom_id="livella_pg"))
 
     @discord.ui.button(label="Livella PG", style=discord.ButtonStyle.success)
     async def livella_pg(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(LivellaModal(self.pg))
 
-
-class LivellaModal(discord.ui.Modal, title="Assegna i 5 punti abilità"):
+class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità"):
     def __init__(self, pg):
         super().__init__()
         self.pg = pg
-        self.punti = discord.ui.TextInput(label="Distribuzione Punti (es: Atletica 2, Mira 3)", required=True)
-        self.pregio = discord.ui.TextInput(label="Pregio (facoltativo)", required=False)
-        self.difetto = discord.ui.TextInput(label="Difetto (solo se Livello 3)", required=False)
-        self.add_item(self.punti)
+        self.skill_selects = []
+        for i in range(5):
+            select = discord.ui.Select(
+                placeholder=f"Punto Abilità {i+1}",
+                options=[discord.SelectOption(label=skill, value=skill) for skill in ABILITA_LIST]
+            )
+            self.skill_selects.append(select)
+            self.add_item(select)
+
+        self.pregio = discord.ui.Select(
+            placeholder="Pregio (facoltativo)",
+            options=[discord.SelectOption(label=tratto) for tratto in TRATTI_PREGI],
+            min_values=0, max_values=1
+        )
+        self.difetto = discord.ui.Select(
+            placeholder="Difetto (solo per livello 3)",
+            options=[discord.SelectOption(label=tratto) for tratto in TRATTI_DIFETTI],
+            min_values=0, max_values=1
+        )
         self.add_item(self.pregio)
         self.add_item(self.difetto)
 
@@ -757,25 +779,25 @@ class LivellaModal(discord.ui.Modal, title="Assegna i 5 punti abilità"):
         livello = self.pg["properties"].get("Livello", {}).get("number", 1)
 
         updates = {}
-        distribuiti = self.punti.value.split(",")
-        for voce in distribuiti:
-            try:
-                abilita, valore = voce.strip().rsplit(" ", 1)
-                valore = int(valore)
-                current = self.pg["properties"].get(abilita, {}).get("number", 0)
-                updates[abilita] = {"number": current + valore}
-            except:
-                continue
+        conteggio = {}
+        for select in self.skill_selects:
+            if select.values:
+                abilita = select.values[0]
+                conteggio[abilita] = conteggio.get(abilita, 0) + 1
+
+        for abilita, aumento in conteggio.items():
+            current = self.pg["properties"].get(abilita, {}).get("number", 0)
+            updates[abilita] = {"number": current + aumento}
 
         updates["Livello"] = {"number": livello + 1}
         updates["Ultimo Level Up"] = {"date": {"start": now.date().isoformat()}}
         updates["Level Up"] = {"checkbox": False}
+        updates["Role"] = {"number": 0}
 
-        # Tratti
-        if self.pregio.value:
-            updates["Tratto 7"] = {"multi_select": [{"name": self.pregio.value}]}
-        if self.difetto.value and livello == 3:
-            updates["Tratto 8"] = {"multi_select": [{"name": self.difetto.value}]}
+        if self.pregio.values:
+            updates["Tratto 7"] = {"multi_select": [{"name": self.pregio.values[0]}]}
+        if self.difetto.values and livello == 3:
+            updates["Tratto 8"] = {"multi_select": [{"name": self.difetto.values[0]}]}
 
         requests.patch(f"https://api.notion.com/v1/pages/{self.pg['id']}", headers=HEADERS, json={"properties": updates})
 
@@ -783,7 +805,6 @@ class LivellaModal(discord.ui.Modal, title="Assegna i 5 punti abilità"):
             f"✅ **{nome_pg}** è salito al livello {livello + 1}!\nI punti abilità sono stati assegnati. Contatta lo staff per validare eventuali pregi/difetti.",
             ephemeral=True
         )
-
 
 @tree.command(name="end", description="Concludi una role per un tuo PG")
 async def end(interaction: discord.Interaction):
@@ -805,6 +826,7 @@ async def end(interaction: discord.Interaction):
         await view.callback(interaction)
     else:
         await interaction.followup.send("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
+
 
 
 
