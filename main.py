@@ -657,7 +657,6 @@ class GrattaSantiView(discord.ui.View):
 
         await interaction.followup.send(embed=embed)
 
-
 # === LIVELLAMENTO PG ===
 
 ABILITA_LIST = [
@@ -711,7 +710,7 @@ class EndRoleSelect(discord.ui.Select):
         role_count = (pg["properties"].get("Role", {}).get("number") or 0) + 1
 
         livello_field = pg["properties"].get("Livello", {}).get("multi_select", [])
-        livello = LIVELLI.get(livello_field[-1]["name"], 1) if livello_field else 1
+        livello = max((LIVELLI.get(lv["name"], 1) for lv in livello_field), default=1)
 
         requests.patch(
             f"https://api.notion.com/v1/pages/{pg_id}",
@@ -736,7 +735,7 @@ class EndRoleSelect(discord.ui.Select):
             5: (75, 5),
         }
 
-        if livello in requisiti:
+        if livello in requisiti and livello < 6:
             giorni, ruolate = requisiti[livello]
             if giorni_passati >= giorni and role_count >= ruolate:
                 requests.patch(
@@ -770,26 +769,27 @@ class LivellaModal(discord.ui.Modal, title="Distribuisci i tuoi 5 punti abilità
             self.add_item(discord.ui.Select(
                 placeholder=f"Punto Abilità {i+1}",
                 options=[discord.SelectOption(label=skill, value=skill) for skill in ABILITA_LIST],
-                custom_id=f"skill_{i}"
+                custom_id=f"skill_{i}",
+                row=i
             ))
 
         self.add_item(discord.ui.Select(
             placeholder="Pregio (facoltativo)",
             options=[discord.SelectOption(label=tratto) for tratto in TRATTI_PREGI],
-            min_values=0, max_values=1, custom_id="pregio"
+            min_values=0, max_values=1, custom_id="pregio", row=5
         ))
 
         self.add_item(discord.ui.Select(
             placeholder="Difetto (solo per livello 3)",
             options=[discord.SelectOption(label=tratto) for tratto in TRATTI_DIFETTI],
-            min_values=0, max_values=1, custom_id="difetto"
+            min_values=0, max_values=1, custom_id="difetto", row=6
         ))
 
     async def on_submit(self, interaction: discord.Interaction):
         now = datetime.utcnow()
         nome_pg = self.pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
         livello_field = self.pg["properties"].get("Livello", {}).get("multi_select", [])
-        livello = LIVELLI.get(livello_field[-1]["name"], 1) if livello_field else 1
+        livello = max((LIVELLI.get(lv["name"], 1) for lv in livello_field), default=1)
 
         updates = {}
         conteggio = {}
@@ -841,6 +841,7 @@ async def end(interaction: discord.Interaction):
         await view.callback(interaction)
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
+
 
 
 # CODICI PER DEPLOY:
