@@ -686,7 +686,7 @@ class EndRoleSelect(discord.ui.Select):
 
         now = datetime.utcnow()
 
-        role_count = pg["properties"].get("Role", {}).get("number", 0) + 1
+        role_count = (pg["properties"].get("Role", {}).get("number") or 0) + 1
         requests.patch(
             f"https://api.notion.com/v1/pages/{pg_id}",
             headers=HEADERS,
