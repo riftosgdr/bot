@@ -19,7 +19,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
     # CODICE DADO:
+import random
+import discord
+from discord import app_commands
+import requests
 
+# Costanti globali
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
     "Notion-Version": "2022-06-28",
@@ -36,6 +41,7 @@ ABILITA = [
 
 MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
+SOGLIE = {"Facile": 1, "Media": 3, "Difficile": 5, "Epica": 7}
 
 class DadoView(discord.ui.View):
     def __init__(self, user_id, personaggi):
@@ -92,6 +98,14 @@ class TiroConfigView(discord.ui.View):
         self.diff_select.callback = self.select_callback
         self.add_item(self.diff_select)
 
+        self.soglia_select = discord.ui.Select(
+            placeholder="(Facoltativa) Soglia di Successo",
+            options=[discord.SelectOption(label=nome, value=str(val)) for nome, val in SOGLIE.items()],
+            min_values=0, max_values=1
+        )
+        self.soglia_select.callback = self.select_callback
+        self.add_item(self.soglia_select)
+
         self.bonus_select = discord.ui.Select(
             placeholder="(Facoltativo) Bonus/Malus d10",
             options=[discord.SelectOption(label=str(i)) for i in range(-5, 6)],
@@ -120,6 +134,7 @@ class TiroConfigView(discord.ui.View):
         caratteristica = self.char_select.values[0]
         abilita = self.abilita_select.values[0] if self.abilita_select.values else None
         difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
+        soglia = int(self.soglia_select.values[0]) if self.soglia_select.values else 0
         bonus = int(self.bonus_select.values[0]) if self.bonus_select.values else 0
 
         caratteristica_val = self.personaggio.get(caratteristica, 0)
@@ -128,24 +143,31 @@ class TiroConfigView(discord.ui.View):
         dado_totale = caratteristica_val + abilita_val + bonus
         tiri = [random.randint(1, 10) for _ in range(max(dado_totale, 0))]
 
-        successi = sum(1 for d in tiri if d >= difficolta)
+        successi = sum(1 for d in tiri if difficolta <= d < 10) + sum(2 for d in tiri if d == 10)
+        penalita = sum(1 for d in tiri if d == 1)
+        netti = max(0, successi - penalita)
+
         dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
 
-        if successi >= 6:
+        if dado_totale >= soglia + 2:
             esito = "🚀 Successo critico!"
-        elif successi >= 1:
+        elif dado_totale == soglia + 1:
+            esito = "✅ Successo!"
+        elif dado_totale == soglia - 1:
+            esito = "❌ Fallimento."
+        elif dado_totale <= soglia - 2:
+            esito = "💥 Fallimento critico!"
+        elif netti >= soglia:
             esito = "✅ Successo!"
         else:
             esito = "❌ Fallimento!"
 
-        parola_successo = "Successo" if successi == 1 else "Successi"
-        abilita_str = f" + {abilita} {abilita_val}" if abilita else ""
-
         await interaction.response.defer(ephemeral=True)
-
         await interaction.channel.send(
-            f"🎲 **{self.personaggio['Nome']}** tira {caratteristica} {caratteristica_val}{abilita_str} + {bonus}d10 a Difficoltà {difficolta} = {dado_totale}d10\n"
-            f"🎯 Risultati: [{', '.join(dettagli)}], che equivale a **{successi} {parola_successo}**\n"
+            f"🎲 **{self.personaggio['Nome']}** tira {caratteristica} {caratteristica_val}" +
+            (f" + {abilita} {abilita_val}" if abilita else "") +
+            f" + {bonus}d10 a Difficoltà {difficolta} = {dado_totale}d10\n"
+            f"🎯 Risultati: [{', '.join(dettagli)}] → **{netti} Successi**\n"
             f"{esito}"
         )
 
@@ -186,6 +208,7 @@ async def dado(interaction: discord.Interaction):
 
     view = DadoView(interaction.user.id, personaggi)
     await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+
 
 
     # CODICE RITIRO STIPENDIO:
