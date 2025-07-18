@@ -631,7 +631,8 @@ class GrattaSantiView(discord.ui.View):
         embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
-await interaction.followup.send(embed=embed, ephemeral=False)
+        await interaction.followup.send(embed=embed, ephemeral=False)
+
 
 # === LIVELLAMENTO PG ===
 
