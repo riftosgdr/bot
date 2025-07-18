@@ -136,13 +136,14 @@ class TiroConfigView(discord.ui.View):
 
         successi = 0
         uno = 0
+        dieci = 0
         dettagli = []
 
         for d in tiri:
             if d >= difficolta:
                 successi += 1
                 if d == 10:
-                    successi += 1
+                    dieci += 1
                 dettagli.append(f"**__{d}__**")
             elif d == 1:
                 uno += 1
@@ -150,10 +151,12 @@ class TiroConfigView(discord.ui.View):
             else:
                 dettagli.append(f"~~{d}~~")
 
-        successi -= uno
-        successi = max(0, successi)
+        if uno == 0:
+            successi += dieci  # ogni 10 vale 2 se non ci sono 1
 
-        if successi >= 5:
+        successi = max(0, successi - uno)
+
+        if successi >= 6:
             esito = "🚀 Successo critico!"
         elif successi >= 1:
             esito = "✅ Successo!"
@@ -210,6 +213,7 @@ async def dado(interaction: discord.Interaction):
 
     view = DadoView(interaction.user.id, personaggi)
     await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+
 
 
     # CODICE RITIRO STIPENDIO:
@@ -613,10 +617,10 @@ class GrattaSantiView(discord.ui.View):
                         conteggio[punto] = conteggio.get(punto, 0) + 1
             if any(v >= 3 for v in conteggio.values()):
                 moltiplicatore = 1.5
-                messaggio = "🪙 Vincita minore! 3 santi allineati per punto cardinale."
+                messaggio = "🪙 Vincita minore! 3 Santi allineati per punto cardinale."
             else:
                 moltiplicatore = 0
-                messaggio = "❌ Ritenta!"
+                messaggio = "❌ Ritenta! Sarai più fortunato!"
 
         vincita = int(puntata * moltiplicatore)
 
@@ -648,7 +652,7 @@ class GrattaSantiView(discord.ui.View):
             }
         })
 
-        embed = discord.Embed(title="🎫 Gratta i Santi", color=discord.Color.gold())
+        embed = discord.Embed(title=f"🎫 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
         embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
         embed.add_field(name="💰 Puntata:", value=f"Ȼ{puntata}", inline=True)
