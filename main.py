@@ -26,7 +26,6 @@ HEADERS = {
 }
 
     # CODICE DADO:
-
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
 ABILITA = [
     "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
@@ -37,7 +36,7 @@ ABILITA = [
 
 MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
-SOGLIE = {"Facile": 1, "Media": 3, "Difficile": 5, "Epica": 7}
+SOGLIE = {"1 - Facile": 1, "3 - Media": 3, "5 - Difficile": 5, "7 - Epica": 7}
 
 class DadoView(discord.ui.View):
     def __init__(self, user_id, personaggi):
@@ -153,24 +152,23 @@ class SecondaFaseTiroView(discord.ui.View):
 
         dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
 
-        if dado_totale >= soglia + 2:
+        # Corretto: confronto deve essere con i successi netti, non con dado_totale
+        if netti >= soglia + 2:
             esito = "🚀 Successo critico!"
-        elif dado_totale == soglia + 1:
+        elif netti == soglia + 1:
             esito = "✅ Successo!"
-        elif dado_totale == soglia - 1:
+        elif netti == soglia:
+            esito = "✅ Successo!"
+        elif netti == soglia - 1:
             esito = "❌ Fallimento."
-        elif dado_totale <= soglia - 2:
-            esito = "💥 Fallimento critico!"
-        elif netti >= soglia:
-            esito = "✅ Successo!"
         else:
-            esito = "❌ Fallimento!"
+            esito = "💥 Fallimento critico!"
 
         await interaction.response.defer(ephemeral=True)
         await interaction.channel.send(
             f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}" +
             (f" + {self.abilita} {abilita_val}" if self.abilita else "") +
-            f" + {self.bonus}d10 a Difficoltà {difficolta} = {dado_totale}d10\n"
+            f" + {self.bonus}d10 a Difficoltà {difficolta} a Soglia {soglia} = {dado_totale}d10\n"
             f"🎯 Risultati: [{', '.join(dettagli)}] → **{netti} Successi**\n"
             f"{esito}"
         )
@@ -212,6 +210,7 @@ async def dado(interaction: discord.Interaction):
 
     view = DadoView(interaction.user.id, personaggi)
     await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+
 
 
 
