@@ -18,7 +18,7 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-    # CODICE DADO VTM:
+    # CODICE DADO:
 
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
@@ -34,12 +34,7 @@ ABILITA = [
     "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
 ]
 
-MAPPING_CARATTERISTICHE = {
-    "Vigore": "VIGORE",
-    "Presenza": "PRESENZA",
-    "Acume": "ACUME",
-    "Risonanza": "RISONANZA"
-}
+MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
 
 class DadoView(discord.ui.View):
@@ -63,7 +58,6 @@ class DadoView(discord.ui.View):
 
         pg_id = self.pg_select.values[0]
         self.selected_pg = self.personaggi[pg_id]
-
         abilita_attive = [a for a in ABILITA if (self.selected_pg.get(a) or 0) > 0]
 
         view = TiroConfigView(self.user_id, self.selected_pg, abilita_attive)
@@ -134,34 +128,13 @@ class TiroConfigView(discord.ui.View):
         dado_totale = caratteristica_val + abilita_val + bonus
         tiri = [random.randint(1, 10) for _ in range(max(dado_totale, 0))]
 
-        successi = 0
-        uno = 0
-        dieci = 0
-        dettagli = []
-
-        for d in tiri:
-            if d >= difficolta:
-                successi += 1
-                if d == 10:
-                    dieci += 1
-                dettagli.append(f"**__{d}__**")
-            elif d == 1:
-                uno += 1
-                dettagli.append(f"*{d}*")
-            else:
-                dettagli.append(f"~~{d}~~")
-
-        if uno == 0:
-            successi += dieci  # ogni 10 vale 2 se non ci sono 1
-
-        successi = max(0, successi - uno)
+        successi = sum(1 for d in tiri if d >= difficolta)
+        dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
 
         if successi >= 6:
             esito = "🚀 Successo critico!"
         elif successi >= 1:
             esito = "✅ Successo!"
-        elif uno > 0:
-            esito = "💥 Fallimento critico!"
         else:
             esito = "❌ Fallimento!"
 
@@ -213,7 +186,6 @@ async def dado(interaction: discord.Interaction):
 
     view = DadoView(interaction.user.id, personaggi)
     await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
-
 
 
     # CODICE RITIRO STIPENDIO:
