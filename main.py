@@ -18,18 +18,14 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-    # CODICE DADO:
-import random
-import discord
-from discord import app_commands
-import requests
-
 # Costanti globali
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
     "Notion-Version": "2022-06-28",
     "Content-Type": "application/json"
 }
+
+    # CODICE DADO:
 
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
 ABILITA = [
@@ -66,10 +62,10 @@ class DadoView(discord.ui.View):
         self.selected_pg = self.personaggi[pg_id]
         abilita_attive = [a for a in ABILITA if (self.selected_pg.get(a) or 0) > 0]
 
-        view = TiroConfigView(self.user_id, self.selected_pg, abilita_attive)
+        view = PrimaFaseTiroView(self.user_id, self.selected_pg, abilita_attive)
         await interaction.response.edit_message(content=f"Configura il tiro per {self.selected_pg['Nome']}", view=view)
 
-class TiroConfigView(discord.ui.View):
+class PrimaFaseTiroView(discord.ui.View):
     def __init__(self, user_id, personaggio, abilita_attive):
         super().__init__(timeout=120)
         self.user_id = user_id
@@ -79,68 +75,76 @@ class TiroConfigView(discord.ui.View):
             placeholder="Seleziona Caratteristica",
             options=[discord.SelectOption(label=c) for c in CARATTERISTICHE]
         )
-        self.char_select.callback = self.select_callback
-        self.add_item(self.char_select)
-
         self.abilita_select = discord.ui.Select(
             placeholder="(Facoltativa) Seleziona Abilità",
             options=[discord.SelectOption(label=a) for a in abilita_attive],
             min_values=0, max_values=1
         )
-        self.abilita_select.callback = self.select_callback
-        self.add_item(self.abilita_select)
-
-        self.diff_select = discord.ui.Select(
-            placeholder="(Facoltativa) Difficoltà (default 7)",
-            options=[discord.SelectOption(label=str(i)) for i in range(5, 11)],
-            min_values=0, max_values=1
-        )
-        self.diff_select.callback = self.select_callback
-        self.add_item(self.diff_select)
-
-        self.soglia_select = discord.ui.Select(
-            placeholder="(Facoltativa) Soglia di Successo",
-            options=[discord.SelectOption(label=nome, value=str(val)) for nome, val in SOGLIE.items()],
-            min_values=0, max_values=1
-        )
-        self.soglia_select.callback = self.select_callback
-        self.add_item(self.soglia_select)
-
         self.bonus_select = discord.ui.Select(
             placeholder="(Facoltativo) Bonus/Malus d10",
             options=[discord.SelectOption(label=str(i)) for i in range(-5, 6)],
             min_values=0, max_values=1
         )
-        self.bonus_select.callback = self.select_callback
-        self.add_item(self.bonus_select)
+        self.continua_button = discord.ui.Button(label="Continua", style=discord.ButtonStyle.primary)
 
-        self.roll_button = discord.ui.Button(label="Tira!", style=discord.ButtonStyle.primary)
+        self.char_select.callback = self.select_callback
+        self.abilita_select.callback = self.select_callback
+        self.bonus_select.callback = self.select_callback
+        self.continua_button.callback = self.continua
+
+        self.add_item(self.char_select)
+        self.add_item(self.abilita_select)
+        self.add_item(self.bonus_select)
+        self.add_item(self.continua_button)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+    async def continua(self, interaction: discord.Interaction):
+        caratteristica = self.char_select.values[0]
+        abilita = self.abilita_select.values[0] if self.abilita_select.values else None
+        bonus = int(self.bonus_select.values[0]) if self.bonus_select.values else 0
+
+        view = SecondaFaseTiroView(self.user_id, self.personaggio, caratteristica, abilita, bonus)
+        await interaction.response.edit_message(content="Imposta Difficoltà e Soglia:", view=view)
+
+class SecondaFaseTiroView(discord.ui.View):
+    def __init__(self, user_id, personaggio, caratteristica, abilita, bonus):
+        super().__init__(timeout=120)
+        self.user_id = user_id
+        self.personaggio = personaggio
+        self.caratteristica = caratteristica
+        self.abilita = abilita
+        self.bonus = bonus
+
+        self.diff_select = discord.ui.Select(
+            placeholder="Difficoltà (default 7)",
+            options=[discord.SelectOption(label=str(i)) for i in range(5, 11)]
+        )
+        self.soglia_select = discord.ui.Select(
+            placeholder="Soglia di Successo",
+            options=[discord.SelectOption(label=nome, value=str(val)) for nome, val in SOGLIE.items()]
+        )
+        self.roll_button = discord.ui.Button(label="Tira!", style=discord.ButtonStyle.success)
+
+        self.diff_select.callback = self.select_callback
+        self.soglia_select.callback = self.select_callback
         self.roll_button.callback = self.roll_dice
+
+        self.add_item(self.diff_select)
+        self.add_item(self.soglia_select)
         self.add_item(self.roll_button)
 
     async def select_callback(self, interaction: discord.Interaction):
-        if interaction.user.id == self.user_id:
-            await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
 
     async def roll_dice(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
-            return
-
-        if not self.char_select.values:
-            await interaction.response.send_message("❌ Seleziona una Caratteristica!", ephemeral=True)
-            return
-
-        caratteristica = self.char_select.values[0]
-        abilita = self.abilita_select.values[0] if self.abilita_select.values else None
         difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
         soglia = int(self.soglia_select.values[0]) if self.soglia_select.values else 0
-        bonus = int(self.bonus_select.values[0]) if self.bonus_select.values else 0
 
-        caratteristica_val = self.personaggio.get(caratteristica, 0)
-        abilita_val = self.personaggio.get(abilita, 0) if abilita else 0
-
-        dado_totale = caratteristica_val + abilita_val + bonus
+        caratteristica_val = self.personaggio.get(self.caratteristica, 0)
+        abilita_val = self.personaggio.get(self.abilita, 0) if self.abilita else 0
+        dado_totale = caratteristica_val + abilita_val + self.bonus
         tiri = [random.randint(1, 10) for _ in range(max(dado_totale, 0))]
 
         successi = sum(1 for d in tiri if difficolta <= d < 10) + sum(2 for d in tiri if d == 10)
@@ -164,9 +168,9 @@ class TiroConfigView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True)
         await interaction.channel.send(
-            f"🎲 **{self.personaggio['Nome']}** tira {caratteristica} {caratteristica_val}" +
-            (f" + {abilita} {abilita_val}" if abilita else "") +
-            f" + {bonus}d10 a Difficoltà {difficolta} = {dado_totale}d10\n"
+            f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}" +
+            (f" + {self.abilita} {abilita_val}" if self.abilita else "") +
+            f" + {self.bonus}d10 a Difficoltà {difficolta} = {dado_totale}d10\n"
             f"🎯 Risultati: [{', '.join(dettagli)}] → **{netti} Successi**\n"
             f"{esito}"
         )
