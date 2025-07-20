@@ -886,6 +886,8 @@ ARCANO_IMAGES = {
 
 @tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -900,11 +902,11 @@ async def ruota_arcana(interaction: discord.Interaction):
     personaggi = data.get("results", [])
 
     if not personaggi:
-        await interaction.response.send_message("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+        await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
         return
 
     view = SelezionePG(interaction.user.id, personaggi)
-    await interaction.response.send_message("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
+    await interaction.followup.send("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
 
 
 class SelezionePG(discord.ui.View):
@@ -939,7 +941,7 @@ class ScommessaModal(discord.ui.Modal):
         self.add_item(self.importo)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
 
         try:
             scommessa = int(self.importo.value)
@@ -1012,6 +1014,7 @@ class ScommessaModal(discord.ui.Modal):
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
 
         await interaction.channel.send(embed=embed)
+
 
 # CODICI PER DEPLOY:
 
