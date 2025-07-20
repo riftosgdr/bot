@@ -886,8 +886,6 @@ ARCANO_IMAGES = {
 
 @tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -902,14 +900,11 @@ async def ruota_arcana(interaction: discord.Interaction):
     personaggi = data.get("results", [])
 
     if not personaggi:
-        await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+        await interaction.response.send_message("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
         return
 
-    if len(personaggi) == 1:
-        await interaction.followup.send(view=SelezionePG(interaction.user.id, personaggi), ephemeral=True)
-        return
-
-    await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id, personaggi), ephemeral=True)
+    view = SelezionePG(interaction.user.id, personaggi)
+    await interaction.response.send_message("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
 
 
 class SelezionePG(discord.ui.View):
@@ -924,12 +919,12 @@ class SelezionePG(discord.ui.View):
         self.select.callback = self.callback
         self.add_item(self.select)
 
-    async def callback(self, i: discord.Interaction):
-        if i.user.id != self.user_id:
-            await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
+    async def callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Non puoi usare questo menu.", ephemeral=True)
             return
         nome = self.select.values[0]
-        await i.response.send_modal(ScommessaModal(self.mapping[nome]))
+        await interaction.response.send_modal(ScommessaModal(self.mapping[nome]))
 
 
 class ScommessaModal(discord.ui.Modal):
@@ -944,10 +939,12 @@ class ScommessaModal(discord.ui.Modal):
         self.add_item(self.importo)
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         try:
             scommessa = int(self.importo.value)
         except ValueError:
-            await interaction.response.send_message("❌ L'importo inserito non è valido.", ephemeral=True)
+            await interaction.followup.send("❌ L'importo inserito non è valido.", ephemeral=True)
             return
 
         props = self.pg["properties"]
@@ -956,7 +953,7 @@ class ScommessaModal(discord.ui.Modal):
         saldo = props["Croniri"]["number"] or 0
 
         if saldo < scommessa:
-            await interaction.response.send_message(f"❌ {nome_pg} non ha abbastanza Croniri.", ephemeral=True)
+            await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Croniri.", ephemeral=True)
             return
 
         nuovo_saldo = saldo - scommessa
@@ -1013,10 +1010,8 @@ class ScommessaModal(discord.ui.Modal):
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
-        
+
         await interaction.channel.send(embed=embed)
-
-
 
 # CODICI PER DEPLOY:
 
