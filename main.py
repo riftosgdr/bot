@@ -191,16 +191,15 @@ class SecondaFaseTiroView(discord.ui.View):
 
         dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
 
-        if netti == 0:
-            esito = "💥 Fallimento critico!"
-        elif netti >= soglia + 2:
-            esito = "🚀 Successo critico!"
-        elif netti >= soglia:
-            esito = "✅ Successo!"
-        elif netti == soglia - 1:
-            esito = "❌ Fallimento."
-        else:
-            esito = "💥 Fallimento critico!"
+     if netti <= 0:
+    esito = "💥 Fallimento critico!"
+elif netti >= soglia + 2:
+    esito = "🚀 Successo critico!"
+elif netti >= soglia:
+    esito = "✅ Successo!"
+else:
+    esito = "❌ Fallimento."
+
 
         await interaction.response.defer(ephemeral=True)
         await interaction.channel.send(
