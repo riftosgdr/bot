@@ -156,7 +156,7 @@ class SecondaFaseTiroView(discord.ui.View):
 
         self.diff_select = discord.ui.Select(
             placeholder="Difficoltà (Default: 6)",
-            options=[discord.SelectOption(label=str(i)) for i in range(4, 11)]
+            options=[discord.SelectOption(label=str(i)) for i in range(5, 11)]
         )
         self.soglia_select = discord.ui.Select(
             placeholder="Soglia di Successo (Default: Facile)",
@@ -176,7 +176,7 @@ class SecondaFaseTiroView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
 
     async def roll_dice(self, interaction: discord.Interaction):
-        difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 6
+        difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
         soglia_nome = self.soglia_select.values[0] if self.soglia_select.values else "Facile"
         soglia = SOGLIE[soglia_nome]
 
