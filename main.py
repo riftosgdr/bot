@@ -852,7 +852,7 @@ async def end(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
 
-# Zodiac Wheel Command Structure# Zodiac Wheel Command Structure
+# Zodiac Wheel Command Structure
 
 ARCANI = {
     "L’Abisso": "Inverno",
@@ -886,7 +886,6 @@ ARCANO_IMAGES = {
 
 @tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -901,119 +900,121 @@ async def ruota_arcana(interaction: discord.Interaction):
     personaggi = data.get("results", [])
 
     if not personaggi:
-        await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+        await interaction.response.send_message("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
         return
 
     if len(personaggi) == 1:
-        pg = personaggi[0]
-    else:
-        options = [
-            discord.SelectOption(
-                label=pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"],
-                value=pg["id"]
-            ) for pg in personaggi
-        ]
+        await interaction.response.send_modal(ScommessaModal(personaggi[0]))
+        return
 
-        class SelectPG(discord.ui.View):
-            def __init__(self):
-                super().__init__(timeout=60)
-                self.select = discord.ui.Select(placeholder="Scegli il personaggio con cui scommettere", options=options)
-                self.select.callback = self.select_callback
-                self.add_item(self.select)
-                self.selected_pg = None
+    class SelezionePG(discord.ui.View):
+        def __init__(self, user_id):
+            super().__init__(timeout=60)
+            self.user_id = user_id
+            self.mapping = {pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]: pg for pg in personaggi}
+            self.select = discord.ui.Select(
+                placeholder="Scegli il PG",
+                options=[discord.SelectOption(label=nome, value=nome) for nome in self.mapping.keys()]
+            )
+            self.select.callback = self.callback
+            self.add_item(self.select)
 
-            async def select_callback(self, i: discord.Interaction):
-                if i.user.id != interaction.user.id:
-                    await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
-                    return
-                selected_id = self.select.values[0]
-                self.selected_pg = next(pg for pg in personaggi if pg["id"] == selected_id)
-                self.stop()
-                await i.response.defer()
+        async def callback(self, i: discord.Interaction):
+            if i.user.id != self.user_id:
+                await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
+                return
+            nome = self.select.values[0]
+            await i.response.send_modal(ScommessaModal(self.mapping[nome]))
 
-        view = SelectPG()
-        await interaction.followup.send("Hai più di un personaggio. Seleziona con quale giocare:", view=view, ephemeral=True)
-        await view.wait()
+    await interaction.response.send_message("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
 
-        if not view.selected_pg:
-            await interaction.followup.send("⏳ Tempo scaduto o nessuna selezione effettuata.", ephemeral=True)
+
+class ScommessaModal(discord.ui.Modal):
+    def __init__(self, pg):
+        super().__init__(title="Inserisci la tua scommessa")
+        self.pg = pg
+        self.importo = discord.ui.TextInput(
+            label="Importo in Croniri",
+            placeholder="Es. 20",
+            required=True
+        )
+        self.add_item(self.importo)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            scommessa = int(self.importo.value)
+        except ValueError:
+            await interaction.response.send_message("❌ L'importo inserito non è valido.", ephemeral=True)
             return
 
-        pg = view.selected_pg
+        props = self.pg["properties"]
+        nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
+        segni_zodiacali = [v["name"] for v in props["Segno Zodiacale"]["multi_select"]]
+        saldo = props["Croniri"]["number"] or 0
 
-    class ScommessaModal(discord.ui.Modal, title="Inserisci la tua scommessa"):
-        importo = discord.ui.TextInput(label="Importo in Croniri", placeholder="Es. 20", required=True)
+        if saldo < scommessa:
+            await interaction.response.send_message(f"❌ {nome_pg} non ha abbastanza Croniri.", ephemeral=True)
+            return
 
-        async def on_submit(self, i: discord.Interaction):
-            scommessa = int(self.importo.value)
-            props = pg["properties"]
-            nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
-            segni_zodiacali = [v["name"] for v in props["Segno Zodiacale"]["multi_select"]]
-            saldo = props["Croniri"]["number"] or 0
+        nuovo_saldo = saldo - scommessa
+        requests.patch(
+            f"https://api.notion.com/v1/pages/{self.pg['id']}",
+            headers=HEADERS,
+            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+        )
 
-            if saldo < scommessa:
-                await i.response.send_message(f"❌ {nome_pg} non ha abbastanza Croniri per scommettere.", ephemeral=True)
-                return
+        estratto = random.choice(list(ARCANI.keys()))
+        corrisponde = estratto in segni_zodiacali
+        stagionale = any(ARCANI.get(s) == ARCANI[estratto] for s in segni_zodiacali)
 
-            nuovo_saldo = saldo - scommessa
+        if corrisponde:
+            vincita = scommessa * 10
+            titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
+            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri."
+        elif stagionale:
+            vincita = scommessa * 2
+            titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
+            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri."
+        else:
+            vincita = 0
+            titolo = f"💀 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
+            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa."
+
+        if vincita > 0:
+            nuovo_saldo += vincita
             requests.patch(
-                f"https://api.notion.com/v1/pages/{pg['id']}",
+                f"https://api.notion.com/v1/pages/{self.pg['id']}",
                 headers=HEADERS,
                 json={"properties": {"Croniri": {"number": nuovo_saldo}}}
             )
-
-            estratto = random.choice(list(ARCANI.keys()))
-            corrisponde = estratto in segni_zodiacali
-            stagionale = any(ARCANI.get(s) == ARCANI[estratto] for s in segni_zodiacali)
-
-            if corrisponde:
-                vincita = scommessa * 10
-                descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri."
-            elif stagionale:
-                vincita = scommessa * 2
-                descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri."
-            else:
-                vincita = 0
-                descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa."
-
-            if vincita > 0:
-                nuovo_saldo += vincita
-                requests.patch(
-                    f"https://api.notion.com/v1/pages/{pg['id']}",
-                    headers=HEADERS,
-                    json={"properties": {"Croniri": {"number": nuovo_saldo}}}
-                )
-                requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
-                    "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-                    "properties": {
-                        "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                        "Importo": {"number": vincita},
-                        "Causale": {"rich_text": [{"text": {"content": f"Vincita Ruota Arcana da {nome_pg}"}}]},
-                        "Destinatario": {"relation": [{"id": pg["id"]}]}
-                    }
-                })
-
             requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
                 "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
                 "properties": {
                     "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                    "Importo": {"number": -scommessa},
-                    "Causale": {"rich_text": [{"text": {"content": f"Scommessa Ruota Arcana da {nome_pg}"}}]},
-                    "Mittente": {"relation": [{"id": pg["id"]}]},
-                    "Destinatario": {"rich_text": [{"text": {"content": "Ruota degli Arcani"}}]}
+                    "Importo": {"number": vincita},
+                    "Causale": {"rich_text": [{"text": {"content": f"Vincita Ruota Arcana da {nome_pg}"}}]},
+                    "Destinatario": {"relation": [{"id": self.pg["id"]}]}
                 }
             })
 
-            embed = discord.Embed(
-                title=f"{nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani",
-                description=descrizione,
-                color=discord.Color.purple()
-            )
-            embed.set_author(name="Ruota degli Arcani")
-            embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
-            await i.channel.send(embed=embed)
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
+                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+                "Importo": {"number": -scommessa},
+                "Causale": {"rich_text": [{"text": {"content": f"Scommessa Ruota Arcana da {nome_pg}"}}]},
+                "Mittente": {"relation": [{"id": self.pg["id"]}]},
+                "Destinatario": {"rich_text": [{"text": {"content": "Ruota degli Arcani"}}]}
+            }
+        })
 
-    await interaction.response.send_modal(ScommessaModal())
+        embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
+        embed.set_author(name=f"{nome_pg} ha girato la Ruota degli Arcani")
+        embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
+        embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
+
+        await interaction.channel.send(embed=embed)
+
 
 
 # CODICI PER DEPLOY:
