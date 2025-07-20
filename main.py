@@ -926,7 +926,7 @@ async def ruota_arcana(interaction: discord.Interaction):
             nome = self.select.values[0]
             await i.response.send_modal(ScommessaModal(self.mapping[nome]))
 
-    await interaction.response.send_message("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
+    await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
 
 
 class ScommessaModal(discord.ui.Modal):
@@ -1009,12 +1009,10 @@ class ScommessaModal(discord.ui.Modal):
         })
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
-        embed.set_author(name=f"{nome_pg} ha girato la Ruota degli Arcani")
+        embed.set_author(name=f"{nome_pg} ha scommesso {scommessa} Croniri alla la Ruota degli Arcani!")
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
-        embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
 
         await interaction.channel.send(embed=embed)
-
 
 
 # CODICI PER DEPLOY:
