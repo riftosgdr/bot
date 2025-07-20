@@ -25,6 +25,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+# Codice Dadi
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
 ABILITA = [
     "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
@@ -35,7 +36,7 @@ ABILITA = [
 
 MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
-SOGLIE = {"Soglia 1 (Facile)": 1, "Soglia 2 (Media)": 3, "Soglia 3 (Difficile)": 5}
+SOGLIE = {"Facile": 1, "Media": 3, "Difficile": 5}
 
 @tree.command(name="dado", description="Tira un dado per un tuo personaggio")
 async def dado(interaction: discord.Interaction):
@@ -121,7 +122,7 @@ class PrimaFaseTiroView(discord.ui.View):
             options=[discord.SelectOption(label=str(i)) for i in range(-5, 6)],
             min_values=0, max_values=1
         )
-        self.continua_button = discord.ui.Button(label="Continua", style=discord.ButtonStyle.primary)
+        self.continua_button = discord.ui.Button(label="Continua >", style=discord.ButtonStyle.primary)
 
         self.char_select.callback = self.select_callback
         self.abilita_select.callback = self.select_callback
@@ -154,12 +155,12 @@ class SecondaFaseTiroView(discord.ui.View):
         self.bonus = bonus
 
         self.diff_select = discord.ui.Select(
-            placeholder="Difficoltà (default 7)",
-            options=[discord.SelectOption(label=str(i)) for i in range(5, 11)]
+            placeholder="Difficoltà (Default: 6)",
+            options=[discord.SelectOption(label=str(i)) for i in range(4, 11)]
         )
         self.soglia_select = discord.ui.Select(
-            placeholder="Soglia di Successo",
-            options=[discord.SelectOption(label=nome, value=str(val)) for nome, val in SOGLIE.items()]
+            placeholder="Soglia di Successo (Default: Facile)",
+            options=[discord.SelectOption(label=nome, value=nome) for nome in SOGLIE.keys()]
         )
         self.roll_button = discord.ui.Button(label="Tira!", style=discord.ButtonStyle.success)
 
@@ -175,8 +176,9 @@ class SecondaFaseTiroView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
 
     async def roll_dice(self, interaction: discord.Interaction):
-        difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
-        soglia = int(self.soglia_select.values[0]) if self.soglia_select.values else 0
+        difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 6
+        soglia_nome = self.soglia_select.values[0] if self.soglia_select.values else "Facile"
+        soglia = SOGLIE[soglia_nome]
 
         caratteristica_val = self.personaggio.get(self.caratteristica, 0)
         abilita_val = self.personaggio.get(self.abilita, 0) if self.abilita else 0
@@ -198,7 +200,7 @@ class SecondaFaseTiroView(discord.ui.View):
 
         if netti <= 0:
             esito = "💥 Fallimento critico!"
-        elif netti >= soglia + 2:
+        elif netti >= soglia + 3:
             esito = "🚀 Successo critico!"
         elif netti >= soglia:
             esito = "✅ Successo!"
@@ -209,10 +211,11 @@ class SecondaFaseTiroView(discord.ui.View):
         await interaction.channel.send(
             f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
             + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
-            + f" + {self.bonus} a Difficoltà {difficolta} con Soglia {soglia} = {dado_totale}d10\n"
+            + f" + {self.bonus} a **Difficoltà {difficolta}** e **Soglia {soglia_nome}** = {dado_totale}d10\n"
             + f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
             + f"{esito}"
         )
+
 
     # CODICE RITIRO STIPENDIO:
 
