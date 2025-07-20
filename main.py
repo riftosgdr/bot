@@ -76,7 +76,6 @@ async def dado(interaction: discord.Interaction):
     view = DadoView(interaction.user.id, personaggi)
     await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
 
-
 class DadoView(discord.ui.View):
     def __init__(self, user_id, personaggi):
         super().__init__(timeout=120)
@@ -187,26 +186,27 @@ class SecondaFaseTiroView(discord.ui.View):
 
         successi = sum(1 for d in tiri if difficolta <= d < 10) + sum(2 for d in tiri if d == 10)
         penalita = sum(1 for d in tiri if d == 1)
-        netti = max(0, successi - penalita)
+        netti = successi - penalita  # Ora può essere negativo
 
         dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
 
-     if netti == 0:
-    esito = "💥 Fallimento critico!"
-elif netti >= soglia + 2:
-    esito = "🚀 Successo critico!"
-elif netti >= soglia:
-    esito = "✅ Successo!"
-else:
-    esito = "❌ Fallimento."
-
+        if netti <= 0:
+            esito = "💥 Fallimento critico!"
+        elif netti >= soglia + 2:
+            esito = "🚀 Successo critico!"
+        elif netti >= soglia:
+            esito = "✅ Successo!"
+        else:
+            esito = "❌ Fallimento."
 
         await interaction.response.defer(ephemeral=True)
         await interaction.channel.send(
             f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}" +
             (f" + {self.abilita} {abilita_val}" if self.abilita else "") +
-            f" + {self.bonus}d10 a Difficoltà {difficolta} a Soglia {soglia} = {dado_totale}d10\n"
-            f"🎯 Risultati: [{', '.join(dettagli)}] → **{netti} Successi**\n"
+            f" + {self.bonus}d10 a Difficoltà {difficolta} a Soglia {soglia} = {dado_totale}d10
+"
+            f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**
+"
             f"{esito}"
         )
 
