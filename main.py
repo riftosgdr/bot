@@ -884,7 +884,7 @@ ARCANO_IMAGES = {
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte!")
+@tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
@@ -926,7 +926,10 @@ async def ruota_arcana(interaction: discord.Interaction):
             nome = self.select.values[0]
             await i.response.send_modal(ScommessaModal(self.mapping[nome]))
 
-    await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
+    if not interaction.response.is_done():
+        await interaction.response.send_message(view=SelezionePG(interaction.user.id), ephemeral=True)
+    else:
+        await interaction.followup.send(view=SelezionePG(interaction.user.id), ephemeral=True)
 
 
 class ScommessaModal(discord.ui.Modal):
@@ -970,11 +973,11 @@ class ScommessaModal(discord.ui.Modal):
         if corrisponde:
             vincita = scommessa * 10
             titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri."
+            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri!"
         elif stagionale:
             vincita = scommessa * 2
             titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri."
+            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri!"
         else:
             vincita = 0
             titolo = f"💀 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
@@ -1010,8 +1013,10 @@ class ScommessaModal(discord.ui.Modal):
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
+        embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
 
         await interaction.channel.send(embed=embed)
+
 
 
 # CODICI PER DEPLOY:
