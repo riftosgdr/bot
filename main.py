@@ -25,6 +25,8 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+#CODICE DADO
+
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
 ABILITA = [
     "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
@@ -155,7 +157,7 @@ class SecondaFaseTiroView(discord.ui.View):
 
         self.diff_select = discord.ui.Select(
             placeholder="Difficoltà (Default: 7)",
-            options=[discord.SelectOption(label=str(i)) for i in range(5, 11)]
+            options=[discord.SelectOption(label=str(i)) for i in range(4, 11)]
         )
         self.soglia_select = discord.ui.Select(
             placeholder="Soglia di Successo (Default: Bassa)",
@@ -184,7 +186,7 @@ class SecondaFaseTiroView(discord.ui.View):
         dado_totale = caratteristica_val + abilita_val + self.bonus
 
         if dado_totale <= 0:
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 f"⚠️ {self.personaggio['Nome']} non ha dadi da tirare. Controlla Caratteristica, Abilità e Bonus selezionati.",
                 ephemeral=True
             )
@@ -207,7 +209,7 @@ class SecondaFaseTiroView(discord.ui.View):
         else:
             esito = "❌ Fallimento."
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
             + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
             + f" + {self.bonus} a **Difficoltà {difficolta}** e **Soglia {soglia_nome}** = {dado_totale}d10\n"
@@ -215,7 +217,6 @@ class SecondaFaseTiroView(discord.ui.View):
             + f"{esito}",
             ephemeral=False
         )
-
 
     # CODICE RITIRO STIPENDIO:
 
