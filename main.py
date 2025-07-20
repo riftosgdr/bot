@@ -881,7 +881,7 @@ ARCANO_IMAGES = {
     "L’Ombra": "https://i.imgur.com/P4vbykp.jpeg",
     "L’Eco": "https://i.imgur.com/k3VAmoe.jpeg",
     "La Serpe": "https://i.imgur.com/o3lfIdf.jpeg",
-    "La Cenere": "https://example.com/cenere.png"
+    "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
 @tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
