@@ -884,7 +884,7 @@ ARCANO_IMAGES = {
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
+@tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction, scommessa: int):
     await interaction.response.defer(ephemeral=True)
     discord_id = str(interaction.user.id)
@@ -898,11 +898,49 @@ async def ruota_arcana(interaction: discord.Interaction, scommessa: int):
 
     res = requests.post(url, headers=HEADERS, json=payload)
     data = res.json()
-    if not data.get("results"):
+    personaggi = data.get("results", [])
+
+    if not personaggi:
         await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
         return
 
-    pg = data["results"][0]
+    if len(personaggi) == 1:
+        pg = personaggi[0]
+    else:
+        options = [
+            discord.SelectOption(
+                label=pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"],
+                value=pg["id"]
+            ) for pg in personaggi
+        ]
+
+        class SelectPG(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=60)
+                self.select = discord.ui.Select(placeholder="Scegli il personaggio con cui scommettere", options=options)
+                self.select.callback = self.select_callback
+                self.add_item(self.select)
+                self.selected_pg = None
+
+            async def select_callback(self, i: discord.Interaction):
+                if i.user.id != interaction.user.id:
+                    await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
+                    return
+                selected_id = self.select.values[0]
+                self.selected_pg = next(pg for pg in personaggi if pg["id"] == selected_id)
+                self.stop()
+                await i.response.defer()
+
+        view = SelectPG()
+        await interaction.followup.send("Hai più di un personaggio. Seleziona con quale giocare:", view=view, ephemeral=True)
+        await view.wait()
+
+        if not view.selected_pg:
+            await interaction.followup.send("⏳ Tempo scaduto o nessuna selezione effettuata.", ephemeral=True)
+            return
+
+        pg = view.selected_pg
+
     props = pg["properties"]
     nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
     segni_zodiacali = [v["name"] for v in props["Segno Zodiacale"]["multi_select"]]
