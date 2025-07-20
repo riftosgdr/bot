@@ -884,8 +884,10 @@ ARCANO_IMAGES = {
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
+@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -900,36 +902,34 @@ async def ruota_arcana(interaction: discord.Interaction):
     personaggi = data.get("results", [])
 
     if not personaggi:
-        await interaction.response.send_message("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+        await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
         return
 
     if len(personaggi) == 1:
-        await interaction.response.send_modal(ScommessaModal(personaggi[0]))
+        await interaction.followup.send(view=SelezionePG(interaction.user.id, personaggi), ephemeral=True)
         return
 
-    class SelezionePG(discord.ui.View):
-        def __init__(self, user_id):
-            super().__init__(timeout=60)
-            self.user_id = user_id
-            self.mapping = {pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]: pg for pg in personaggi}
-            self.select = discord.ui.Select(
-                placeholder="Scegli il PG",
-                options=[discord.SelectOption(label=nome, value=nome) for nome in self.mapping.keys()]
-            )
-            self.select.callback = self.callback
-            self.add_item(self.select)
+    await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id, personaggi), ephemeral=True)
 
-        async def callback(self, i: discord.Interaction):
-            if i.user.id != self.user_id:
-                await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
-                return
-            nome = self.select.values[0]
-            await i.response.send_modal(ScommessaModal(self.mapping[nome]))
 
-    if not interaction.response.is_done():
-        await interaction.response.send_message(view=SelezionePG(interaction.user.id), ephemeral=True)
-    else:
-        await interaction.followup.send(view=SelezionePG(interaction.user.id), ephemeral=True)
+class SelezionePG(discord.ui.View):
+    def __init__(self, user_id, personaggi):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.mapping = {pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]: pg for pg in personaggi}
+        self.select = discord.ui.Select(
+            placeholder="Scegli il PG",
+            options=[discord.SelectOption(label=nome, value=nome) for nome in self.mapping.keys()]
+        )
+        self.select.callback = self.callback
+        self.add_item(self.select)
+
+    async def callback(self, i: discord.Interaction):
+        if i.user.id != self.user_id:
+            await i.response.send_message("Non puoi usare questo menu.", ephemeral=True)
+            return
+        nome = self.select.values[0]
+        await i.response.send_modal(ScommessaModal(self.mapping[nome]))
 
 
 class ScommessaModal(discord.ui.Modal):
@@ -1013,8 +1013,7 @@ class ScommessaModal(discord.ui.Modal):
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
-        embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
-
+        
         await interaction.channel.send(embed=embed)
 
 
