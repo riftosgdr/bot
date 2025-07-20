@@ -25,7 +25,7 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-    # CODICE DADO:
+# CODICE DADO:
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
 ABILITA = [
     "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
@@ -36,7 +36,7 @@ ABILITA = [
 
 MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
-SOGLIE = {"1 - Facile": 1, "3 - Media": 3, "5 - Difficile": 5, "7 - Epica": 7}
+SOGLIE = {"Soglia 1 (Facile)": 1, "Soglia 2 (Media)": 3, "Soglia 3 (Difficile)": 5}
 
 class DadoView(discord.ui.View):
     def __init__(self, user_id, personaggi):
@@ -152,12 +152,11 @@ class SecondaFaseTiroView(discord.ui.View):
 
         dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
 
-        # Corretto: confronto deve essere con i successi netti, non con dado_totale
-        if netti >= soglia + 2:
+        if netti == 0:
+            esito = "💥 Fallimento critico!"
+        elif netti >= soglia + 2:
             esito = "🚀 Successo critico!"
-        elif netti == soglia + 1:
-            esito = "✅ Successo!"
-        elif netti == soglia:
+        elif netti >= soglia:
             esito = "✅ Successo!"
         elif netti == soglia - 1:
             esito = "❌ Fallimento."
@@ -172,46 +171,6 @@ class SecondaFaseTiroView(discord.ui.View):
             f"🎯 Risultati: [{', '.join(dettagli)}] → **{netti} Successi**\n"
             f"{esito}"
         )
-
-@tree.command(name="dado", description="Tira un dado per un tuo personaggio")
-async def dado(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    discord_id = str(interaction.user.id)
-    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
-    payload = {
-        "filter": {
-            "property": "ID Discord",
-            "rich_text": {"equals": discord_id}
-        }
-    }
-    res = requests.post(url, headers=HEADERS, json=payload)
-    data = res.json()
-
-    personaggi = []
-    for result in data.get("results", []):
-        props = result["properties"]
-        pg_data = {"id": result["id"], "Nome": props["Nome PG"]["rich_text"][0]["text"]["content"]}
-
-        for stat in CARATTERISTICHE:
-            colonna = MAPPING_CARATTERISTICHE.get(stat)
-            valore = props.get(colonna, {}).get("number", 0)
-            pg_data[stat] = valore if valore is not None else 0
-
-        for stat in ABILITA:
-            colonna = MAPPING_ABILITA.get(stat)
-            valore = props.get(colonna, {}).get("number", 0)
-            pg_data[stat] = valore if valore is not None else 0
-
-        personaggi.append(pg_data)
-
-    if not personaggi:
-        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
-        return
-
-    view = DadoView(interaction.user.id, personaggi)
-    await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
-
-
 
 
     # CODICE RITIRO STIPENDIO:
