@@ -884,7 +884,7 @@ ARCANO_IMAGES = {
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
+@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte!")
 async def ruota_arcana(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
@@ -978,7 +978,7 @@ class ScommessaModal(discord.ui.Modal):
         else:
             vincita = 0
             titolo = f"💀 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa."
+            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa!"
 
         if vincita > 0:
             nuovo_saldo += vincita
@@ -1009,7 +1009,6 @@ class ScommessaModal(discord.ui.Modal):
         })
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
-        embed.set_author(name=f"{nome_pg} ha scommesso {scommessa} Croniri alla la Ruota degli Arcani!")
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
 
         await interaction.channel.send(embed=embed)
