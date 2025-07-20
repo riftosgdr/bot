@@ -38,6 +38,45 @@ MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
 SOGLIE = {"Soglia 1 (Facile)": 1, "Soglia 2 (Media)": 3, "Soglia 3 (Difficile)": 5}
 
+@tree.command(name="dado", description="Tira un dado per un tuo personaggio")
+async def dado(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    discord_id = str(interaction.user.id)
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    payload = {
+        "filter": {
+            "property": "ID Discord",
+            "rich_text": {"equals": discord_id}
+        }
+    }
+    res = requests.post(url, headers=HEADERS, json=payload)
+    data = res.json()
+
+    personaggi = []
+    for result in data.get("results", []):
+        props = result["properties"]
+        pg_data = {"id": result["id"], "Nome": props["Nome PG"]["rich_text"][0]["text"]["content"]}
+
+        for stat in CARATTERISTICHE:
+            colonna = MAPPING_CARATTERISTICHE.get(stat)
+            valore = props.get(colonna, {}).get("number", 0)
+            pg_data[stat] = valore if valore is not None else 0
+
+        for stat in ABILITA:
+            colonna = MAPPING_ABILITA.get(stat)
+            valore = props.get(colonna, {}).get("number", 0)
+            pg_data[stat] = valore if valore is not None else 0
+
+        personaggi.append(pg_data)
+
+    if not personaggi:
+        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
+        return
+
+    view = DadoView(interaction.user.id, personaggi)
+    await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+
+
 class DadoView(discord.ui.View):
     def __init__(self, user_id, personaggi):
         super().__init__(timeout=120)
