@@ -852,7 +852,125 @@ async def end(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
 
+# Zodiac Wheel Command Structure
 
+ARCANI = {
+    "L’Abisso": "Inverno",
+    "Il Velo": "Inverno",
+    "La Spiga": "Primavera",
+    "Il Nodo": "Primavera",
+    "Il Petalo": "Primavera",
+    "La Lama": "Estate",
+    "Il Pilastro": "Estate",
+    "Il Giogo": "Estate",
+    "L’Ombra": "Autunno",
+    "L’Eco": "Autunno",
+    "La Serpe": "Autunno",
+    "La Cenere": "Inverno"
+}
+
+ARCANO_IMAGES = {
+    "L’Abisso": "https://i.imgur.com/8iXPVpj.jpeg",
+    "Il Velo": "https://i.imgur.com/u3HODrA.jpeg",
+    "La Spiga": "https://i.imgur.com/8P4we0g.jpeg",
+    "Il Nodo": "https://i.imgur.com/mHmKAqn.jpeg",
+    "Il Petalo": "https://i.imgur.com/Wy9J7NX.jpeg",
+    "La Lama": "https://i.imgur.com/CSzVlXs.jpeg",
+    "Il Pilastro": "https://i.imgur.com/OYCjvXd.png",
+    "Il Giogo": "https://i.imgur.com/Shhxmla.jpeg",
+    "L’Ombra": "https://i.imgur.com/P4vbykp.jpeg",
+    "L’Eco": "https://i.imgur.com/k3VAmoe.jpeg",
+    "La Serpe": "https://i.imgur.com/o3lfIdf.jpeg",
+    "La Cenere": "https://example.com/cenere.png"
+}
+
+@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
+async def ruota_arcana(interaction: discord.Interaction, scommessa: int):
+    await interaction.response.defer(ephemeral=True)
+    discord_id = str(interaction.user.id)
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    payload = {
+        "filter": {
+            "property": "ID Discord",
+            "rich_text": {"equals": discord_id}
+        }
+    }
+
+    res = requests.post(url, headers=HEADERS, json=payload)
+    data = res.json()
+    if not data.get("results"):
+        await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+        return
+
+    pg = data["results"][0]
+    props = pg["properties"]
+    nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
+    segni_zodiacali = [v["name"] for v in props["Segno Zodiacale"]["multi_select"]]
+    saldo = props["Croniri"]["number"] or 0
+
+    if saldo < scommessa:
+        await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Croniri per scommettere.", ephemeral=True)
+        return
+
+    nuovo_saldo = saldo - scommessa
+    requests.patch(
+        f"https://api.notion.com/v1/pages/{pg['id']}",
+        headers=HEADERS,
+        json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+    )
+
+    estratto = random.choice(list(ARCANI.keys()))
+    corrisponde = estratto in segni_zodiacali
+    stagionale = any(ARCANI.get(s) == ARCANI[estratto] for s in segni_zodiacali)
+
+    if corrisponde:
+        vincita = scommessa * 10
+        titolo = "🎉 JACKPOT ZODIACALE!"
+        descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri."
+    elif stagionale:
+        vincita = scommessa * 2
+        titolo = "✨ Vittoria minore"
+        descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri."
+    else:
+        vincita = 0
+        titolo = "💀 Nessuna corrispondenza"
+        descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa."
+
+    if vincita > 0:
+        nuovo_saldo += vincita
+        requests.patch(
+            f"https://api.notion.com/v1/pages/{pg['id']}",
+            headers=HEADERS,
+            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+        )
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
+                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+                "Importo": {"number": vincita},
+                "Causale": {"rich_text": [{"text": {"content": f"Vincita Ruota Arcana da {nome_pg}"}}]},
+                "Destinatario": {"relation": [{"id": pg["id"]}]}
+            }
+        })
+
+    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
+        "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+        "properties": {
+            "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+            "Importo": {"number": -scommessa},
+            "Causale": {"rich_text": [{"text": {"content": f"Scommessa Ruota Arcana da {nome_pg}"}}]},
+            "Mittente": {"relation": [{"id": pg["id"]}]},
+            "Destinatario": {"rich_text": [{"text": {"content": "Ruota degli Arcani"}}]}
+        }
+    })
+
+    embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
+    embed.set_author(name=f"{nome_pg} ha girato la Ruota degli Arcani")
+    embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
+    embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
+
+    await interaction.channel.send(embed=embed)
+    await interaction.followup.send("✅ La tua Ruota è stata girata con successo!", ephemeral=True)
 
 # CODICI PER DEPLOY:
 
