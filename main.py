@@ -175,38 +175,46 @@ class SecondaFaseTiroView(discord.ui.View):
     async def select_callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
-    async def roll_dice(self, interaction: discord.Interaction):
-        difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
-        soglia = int(self.soglia_select.values[0]) if self.soglia_select.values else 0
+   async def roll_dice(self, interaction: discord.Interaction):
+    difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
+    soglia = int(self.soglia_select.values[0]) if self.soglia_select.values else 0
 
-        caratteristica_val = self.personaggio.get(self.caratteristica, 0)
-        abilita_val = self.personaggio.get(self.abilita, 0) if self.abilita else 0
-        dado_totale = caratteristica_val + abilita_val + self.bonus
-        tiri = [random.randint(1, 10) for _ in range(max(dado_totale, 0))]
+    caratteristica_val = self.personaggio.get(self.caratteristica, 0)
+    abilita_val = self.personaggio.get(self.abilita, 0) if self.abilita else 0
+    dado_totale = caratteristica_val + abilita_val + self.bonus
 
-        successi = sum(1 for d in tiri if difficolta <= d < 10) + sum(2 for d in tiri if d == 10)
-        penalita = sum(1 for d in tiri if d == 1)
-        netti = successi - penalita  # Ora può essere negativo
+    if dado_totale <= 0:
+        await interaction.channel.send(
+            f"⚠️ {self.personaggio['Nome']} non ha dadi da tirare. Controlla Caratteristica, Abilità e Bonus selezionati."
+        )
+        return
 
-        dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
+    tiri = [random.randint(1, 10) for _ in range(dado_totale)]
 
-        if netti <= 0:
-            esito = "💥 Fallimento critico!"
-        elif netti >= soglia + 2:
-            esito = "🚀 Successo critico!"
-        elif netti >= soglia:
-            esito = "✅ Successo!"
-        else:
-            esito = "❌ Fallimento."
+    successi = sum(1 for d in tiri if difficolta <= d < 10) + sum(2 for d in tiri if d == 10)
+    penalita = sum(1 for d in tiri if d == 1)
+    netti = successi - penalita
 
-      await interaction.response.defer(ephemeral=True)
+    dettagli = [f"**{d}**" if d >= difficolta else f"~~{d}~~" for d in tiri]
+
+    if netti <= 0:
+        esito = "💥 Fallimento critico!"
+    elif netti >= soglia + 2:
+        esito = "🚀 Successo critico!"
+    elif netti >= soglia:
+        esito = "✅ Successo!"
+    else:
+        esito = "❌ Fallimento."
+
+    await interaction.response.defer(ephemeral=True)
     await interaction.channel.send(
         f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
         + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
-        + f" + {self.bonus} a **Difficoltà {difficolta}** e **Soglia {soglia}** = {dado_totale}d10\n"
+        + f" + {self.bonus} a Difficoltà {difficolta} con Soglia {soglia} = {dado_totale}d10\n"
         + f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
         + f"{esito}"
     )
+
 
 
 
