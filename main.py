@@ -36,7 +36,7 @@ ABILITA = [
 
 MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
 MAPPING_ABILITA = {a: a for a in ABILITA}
-SOGLIE = {"Facile": 1, "Media": 3, "Difficile": 5}
+SOGLIE = {"Bassa": 1, "Media": 3, "Alta": 5}
 
 @tree.command(name="dado", description="Tira un dado per un tuo personaggio")
 async def dado(interaction: discord.Interaction):
@@ -159,7 +159,7 @@ class SecondaFaseTiroView(discord.ui.View):
             options=[discord.SelectOption(label=str(i)) for i in range(5, 11)]
         )
         self.soglia_select = discord.ui.Select(
-            placeholder="Soglia di Successo (Default: Facile)",
+            placeholder="Soglia di Successo (Default: Bassa)",
             options=[discord.SelectOption(label=nome, value=nome) for nome in SOGLIE.keys()]
         )
         self.roll_button = discord.ui.Button(label="Tira!", style=discord.ButtonStyle.success)
@@ -177,7 +177,7 @@ class SecondaFaseTiroView(discord.ui.View):
 
     async def roll_dice(self, interaction: discord.Interaction):
         difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
-        soglia_nome = self.soglia_select.values[0] if self.soglia_select.values else "Facile"
+        soglia_nome = self.soglia_select.values[0] if self.soglia_select.values else "Bassa"
         soglia = SOGLIE[soglia_nome]
 
         caratteristica_val = self.personaggio.get(self.caratteristica, 0)
