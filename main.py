@@ -157,7 +157,7 @@ class SecondaFaseTiroView(discord.ui.View):
 
         self.diff_select = discord.ui.Select(
             placeholder="Difficoltà (Default: 7)",
-            options=[discord.SelectOption(label=str(i)) for i in range(4, 11)]
+            options=[discord.SelectOption(label=str(i)) for i in range(5, 11)]
         )
         self.soglia_select = discord.ui.Select(
             placeholder="Soglia di Successo (Default: Bassa)",
