@@ -25,7 +25,6 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# Codice Dadi
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
 ABILITA = [
     "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
@@ -185,8 +184,9 @@ class SecondaFaseTiroView(discord.ui.View):
         dado_totale = caratteristica_val + abilita_val + self.bonus
 
         if dado_totale <= 0:
-            await interaction.channel.send(
-                f"⚠️ {self.personaggio['Nome']} non ha dadi da tirare. Controlla Caratteristica, Abilità e Bonus selezionati."
+            await interaction.followup.send(
+                f"⚠️ {self.personaggio['Nome']} non ha dadi da tirare. Controlla Caratteristica, Abilità e Bonus selezionati.",
+                ephemeral=True
             )
             return
 
@@ -207,13 +207,13 @@ class SecondaFaseTiroView(discord.ui.View):
         else:
             esito = "❌ Fallimento."
 
-        await interaction.response.defer(ephemeral=True)
-        await interaction.channel.send(
+        await interaction.followup.send(
             f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
             + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
             + f" + {self.bonus} a **Difficoltà {difficolta}** e **Soglia {soglia_nome}** = {dado_totale}d10\n"
             + f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
-            + f"{esito}"
+            + f"{esito}",
+            ephemeral=False
         )
 
 
