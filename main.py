@@ -201,14 +201,27 @@ class SecondaFaseTiroView(discord.ui.View):
 
         await interaction.response.defer(ephemeral=True)
         await interaction.channel.send(
-            f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}" +
-            (f" + {self.abilita} {abilita_val}" if self.abilita else "") +
-            f" + {self.bonus}d10 a Difficoltà {difficolta} a Soglia {soglia} = {dado_totale}d10
+            (
+                f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
+                + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
+                + f" + {self.bonus}d10 a Difficoltà {difficolta} a Soglia {soglia} = {dado_totale}d10
+"
+                + f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**
+"
+                + f"{esito}"
+            )
+        )}] → **{max(netti, 0)} Successi**
+"
+                f"{esito}"
+            )
+        ) +
+            f" + {self.bonus}d10 a **Difficoltà {difficolta}** e **Soglia {soglia}** = {dado_totale}d10
 "
             f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**
 "
             f"{esito}"
         )
+
 
 
     # CODICE RITIRO STIPENDIO:
