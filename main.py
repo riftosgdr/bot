@@ -1027,7 +1027,7 @@ class ScommessaView(discord.ui.View):
         except discord.NotFound:
             return
 
-   async def scommetti(self, interaction: discord.Interaction):
+    async def scommetti(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
             return
