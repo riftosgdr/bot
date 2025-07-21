@@ -1088,16 +1088,16 @@ class ScommessaView(discord.ui.View):
         json={"properties": {"Croniri": {"number": nuovo_saldo}}}
     )
 
-tx_payload = {
-    "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-    "properties": {
-        "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-        "Importo": {"number": vincita - scommessa},
-        "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata Ȼ{scommessa}, vincita Ȼ{vincita}"}}]},
-        "Mittente": {"relation": [{"id": self.pg["id"]}]}
+    tx_payload = {
+        "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+        "properties": {
+            "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+            "Importo": {"number": vincita - scommessa},
+            "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata Ȼ{scommessa}, vincita Ȼ{vincita}"}}]},
+            "Mittente": {"relation": [{"id": self.pg["id"]}]}
+        }
     }
-}
-requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
