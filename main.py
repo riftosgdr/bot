@@ -701,23 +701,23 @@ class GrattaSantiView(discord.ui.View):
 
         vincita = int(puntata * moltiplicatore)
         if vincita > 0:
-    nuovo_saldo += vincita
-    requests.patch(
-        f"https://api.notion.com/v1/pages/{self.pg['id']}",
-        headers=HEADERS,
-        json={"properties": {"Croniri": {"number": nuovo_saldo}}}
-    )
+            nuovo_saldo += vincita
+            requests.patch(
+            f"https://api.notion.com/v1/pages/{self.pg['id']}",
+            headers=HEADERS,
+            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+            )
 
-    tx_payload = {
-        "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-        "properties": {
+            tx_payload = {
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
             "Data": {"date": {"start": datetime.utcnow().isoformat()}},
             "Importo": {"number": vincita - puntata},
             "Causale": {"rich_text": [{"text": {"content": f"Gratta i Santi: puntata Ȼ{puntata}, vincita Ȼ{vincita}"}}]},
             "Mittente": {"relation": [{"id": self.pg["id"]}]}
-        }
-    }
-    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+            }
+            }
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
         embed = discord.Embed(title=f"🎫 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
@@ -1081,23 +1081,23 @@ class ScommessaView(discord.ui.View):
             descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa!"
 
         if vincita > 0:
-    nuovo_saldo += vincita
-    requests.patch(
-        f"https://api.notion.com/v1/pages/{self.pg['id']}",
-        headers=HEADERS,
-        json={"properties": {"Croniri": {"number": nuovo_saldo}}}
-    )
+            nuovo_saldo += vincita
+            requests.patch(
+            f"https://api.notion.com/v1/pages/{self.pg['id']}",
+            headers=HEADERS,
+            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+            )
 
-    tx_payload = {
-        "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-        "properties": {
+            tx_payload = {
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
             "Data": {"date": {"start": datetime.utcnow().isoformat()}},
             "Importo": {"number": vincita - scommessa},
             "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata Ȼ{scommessa}, vincita Ȼ{vincita}"}}]},
             "Mittente": {"relation": [{"id": self.pg["id"]}]}
-        }
-    }
-    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+            }
+            }
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
