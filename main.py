@@ -884,7 +884,7 @@ ARCANO_IMAGES = {
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
+@tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -967,20 +967,20 @@ class ScommessaModal(discord.ui.Modal):
 
         estratto = random.choice(list(ARCANI.keys()))
         corrisponde = estratto in segni_zodiacali
-        stagionale = any(ARCANI.get(s) == ARCANI[estratto] for s in segni_zodiacali)
+        stagionale = not corrisponde and any(ARCANI.get(s) == ARCANI[estratto] for s in segni_zodiacali)
 
         if corrisponde:
             vincita = scommessa * 10
             titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri!"
+            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri."
         elif stagionale:
             vincita = scommessa * 2
             titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri!"
+            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri."
         else:
             vincita = 0
             titolo = f"💀 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa!"
+            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa."
 
         if vincita > 0:
             nuovo_saldo += vincita
@@ -1012,8 +1012,10 @@ class ScommessaModal(discord.ui.Modal):
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
+        embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
 
         await interaction.channel.send(embed=embed)
+
 
 
 # CODICI PER DEPLOY:
