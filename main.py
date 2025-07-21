@@ -661,7 +661,8 @@ class GrattaSantiView(discord.ui.View):
         embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
-        await interaction.followup.send(embed=embed, ephemeral=False)
+                await interaction.channel.send(embed=embed)
+
 
 
 # === LIVELLAMENTO PG ===
@@ -853,7 +854,6 @@ async def end(interaction: discord.Interaction):
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
 
 # Zodiac Wheel Command Structure
-
 ARCANI = {
     "L'Abisso": "Inverno",
     "Il Velo": "Inverno",
@@ -884,7 +884,7 @@ ARCANO_IMAGES = {
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
+@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte!")
 async def ruota_arcana(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -935,22 +935,26 @@ def normalizza(s):
 
 class ScommessaModal(discord.ui.Modal):
     def __init__(self, pg):
-        super().__init__(title="Inserisci la tua scommessa")
+        super().__init__(title="Scegli la tua scommessa")
         self.pg = pg
-        self.importo = discord.ui.TextInput(
-            label="Importo in Croniri",
-            placeholder="Es. 20",
-            required=True
+        self.importo_select = discord.ui.Select(
+            placeholder="Seleziona l'importo",
+            options=[
+                discord.SelectOption(label="10 Ȼ", value="10"),
+                discord.SelectOption(label="20 Ȼ", value="20"),
+                discord.SelectOption(label="50 Ȼ", value="50")
+            ]
         )
-        self.add_item(self.importo)
+        self.importo_select.callback = self.on_select
+        self.add_item(self.importo_select)
 
-    async def on_submit(self, interaction: discord.Interaction):
+    async def on_select(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
         try:
-            scommessa = int(self.importo.value)
+            scommessa = int(self.importo_select.values[0])
         except ValueError:
-            await interaction.followup.send("❌ L'importo inserito non è valido.", ephemeral=True)
+            await interaction.followup.send("❌ L'importo selezionato non è valido.", ephemeral=True)
             return
 
         props = self.pg["properties"]
@@ -975,11 +979,11 @@ class ScommessaModal(discord.ui.Modal):
         stagionale = any(ARCANI.get(normalizza(s)) == ARCANI[estratto_norm] for s in segni_zodiacali)
 
         if corrisponde:
-            vincita = scommessa * 10
+            vincita = scommessa * 3
             titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
             descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri!"
         elif stagionale:
-            vincita = scommessa * 2
+            vincita = int(scommessa * 1.5)
             titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
             descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri!"
         else:
@@ -1019,6 +1023,7 @@ class ScommessaModal(discord.ui.Modal):
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
 
         await interaction.channel.send(embed=embed)
+
 
 
 # CODICI PER DEPLOY:
