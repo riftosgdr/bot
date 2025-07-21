@@ -31,17 +31,21 @@ def normalizza(s):
     return s
     
 #CODICE DADO
-
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
-ABILITA = [ "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
+ABILITA = [
+    "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
     "Persuasione", "Intimidazione", "Comando", "Maschera", "Autocontrollo",
     "Osservare", "Analisi", "Tecnica", "Studio", "Cultura",
-    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"]
+    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
+]
 
-MAPPING_CARATTERISTICHE = {"Vigore": "VIGORE",
-                           "Presenza": "PRESENZA",
-                           "Acume": "ACUME",
-                           "Risonanza": "RISONANZA"}
+MAPPING_CARATTERISTICHE = {
+    "Vigore": "VIGORE",
+    "Presenza": "PRESENZA",
+    "Acume": "ACUME",
+    "Risonanza": "RISONANZA"
+}
+
 SOGLIE = {
     "Bassa": 1,
     "Media": 3,
@@ -66,7 +70,7 @@ async def dado(interaction: discord.Interaction):
         res = requests.post(url, headers=HEADERS, json=payload)
         data = res.json()
     except Exception:
-        await interaction.response.send_message("❌ Errore nel contattare il database.", ephemeral=True)
+        await interaction.followup.send("❌ Errore nel contattare il database.", ephemeral=True)
         return
 
     personaggi = []
@@ -87,11 +91,11 @@ async def dado(interaction: discord.Interaction):
         personaggi.append(pg_data)
 
     if not personaggi:
-        await interaction.response.send_message("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
+        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
         return
 
     view = DadoView(interaction.user.id, personaggi)
-    await interaction.response.send_message("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+    await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
 
 
 class DadoView(discord.ui.View):
@@ -101,24 +105,20 @@ class DadoView(discord.ui.View):
         self.personaggi = {pg["id"]: pg for pg in personaggi}
         self.selected_pg = None
 
-        self.pg_select = discord.ui.Select(
-            placeholder="Seleziona il personaggio",
-            options=[discord.SelectOption(label=pg["Nome"], value=pg["id"]) for pg in personaggi]
-        )
-        self.pg_select.callback = self.select_pg
-        self.add_item(self.pg_select)
+        options = [discord.SelectOption(label=pg["Nome"], value=pg["id"]) for pg in personaggi]
+        select = discord.ui.Select(placeholder="Seleziona il personaggio", options=options)
+        select.callback = self.select_pg
+        self.add_item(select)
 
     async def select_pg(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
             return
 
-        self.selected_pg = self.personaggi[self.pg_select.values[0]]
+        self.selected_pg = self.personaggi[interaction.data['values'][0]]
         abilita_attive = [a for a in ABILITA if (self.selected_pg.get(a) or 0) > 0]
-
         view = PrimaFaseTiroView(self.user_id, self.selected_pg, abilita_attive)
         await interaction.response.edit_message(content=f"Configura il tiro per {self.selected_pg['Nome']}", view=view)
-
 
 class PrimaFaseTiroView(discord.ui.View):
     def __init__(self, user_id, personaggio, abilita_attive):
@@ -156,10 +156,7 @@ class PrimaFaseTiroView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Non puoi usare questo menu.", ephemeral=True)
             return
-        try:
-            await interaction.response.defer()
-        except discord.NotFound:
-            return
+        await interaction.response.defer()
 
     async def continua(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
@@ -172,7 +169,6 @@ class PrimaFaseTiroView(discord.ui.View):
 
         view = SecondaFaseTiroView(self.user_id, self.personaggio, caratteristica, abilita, bonus)
         await interaction.response.edit_message(content="Imposta Difficoltà e Soglia:", view=view)
-
 
 class SecondaFaseTiroView(discord.ui.View):
     def __init__(self, user_id, personaggio, caratteristica, abilita, bonus):
@@ -205,19 +201,14 @@ class SecondaFaseTiroView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
             return
-        try:
-            await interaction.response.defer()
-        except discord.NotFound:
-            return
+        await interaction.response.defer()
 
     async def roll_dice(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
             return
-        try:
-            await interaction.response.defer(thinking=True)
-        except discord.NotFound:
-            return
+
+        await interaction.response.defer(thinking=True)
 
         difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
         soglia_nome = self.soglia_select.values[0] if self.soglia_select.values else "Bassa"
@@ -235,7 +226,6 @@ class SecondaFaseTiroView(discord.ui.View):
             return
 
         tiri = [random.randint(1, 10) for _ in range(dado_totale)]
-
         successi = sum(1 for d in tiri if difficolta <= d < 10) + sum(2 for d in tiri if d == 10)
         penalita = sum(1 for d in tiri if d == 1)
         netti = successi - penalita
@@ -638,6 +628,7 @@ class GrattaSantiView(discord.ui.View):
         except discord.NotFound:
             return
 
+   
     async def submit(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
@@ -680,6 +671,9 @@ class GrattaSantiView(discord.ui.View):
         nomi = [nome for nome, _ in estratti]
         direzioni = [direz for _, direz in estratti]
 
+        moltiplicatore = 0
+        messaggio = "❌ Ritenta! Sarai più fortunato!"
+
         if set(nomi) == cardinali:
             moltiplicatore = 5
             messaggio = "🚀 WOW! Hai trovato tutti i Santi Cardinali!"
@@ -695,35 +689,33 @@ class GrattaSantiView(discord.ui.View):
             if any(v >= 3 for v in conteggio.values()):
                 moltiplicatore = 1.5
                 messaggio = "🪙 Vincita minore! 3 Santi allineati per punto cardinale."
-            else:
-                moltiplicatore = 0
-                messaggio = "❌ Ritenta! Sarai più fortunato!"
 
         vincita = int(puntata * moltiplicatore)
+
         if vincita > 0:
             nuovo_saldo += vincita
             requests.patch(
-            f"https://api.notion.com/v1/pages/{self.pg['id']}",
-            headers=HEADERS,
-            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+                f"https://api.notion.com/v1/pages/{self.pg['id']}",
+                headers=HEADERS,
+                json={"properties": {"Croniri": {"number": nuovo_saldo}}}
             )
 
             tx_payload = {
-            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-            "properties": {
-            "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-            "Importo": {"number": vincita - puntata},
-            "Causale": {"rich_text": [{"text": {"content": f"Gratta i Santi: puntata Ȼ{puntata}, vincita Ȼ{vincita}"}}]},
-            "Mittente": {"relation": [{"id": self.pg["id"]}]}
+                "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+                "properties": {
+                    "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+                    "Importo": {"number": vincita - puntata},
+                    "Causale": {"rich_text": [{"text": {"content": f"Gratta i Santi: puntata ₻{puntata}, vincita ₻{vincita}"}}]},
+                    "Mittente": {"relation": [{"id": self.pg["id"]}]}
+                }
             }
-            }
-        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+            requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-        embed = discord.Embed(title=f"🎫 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
+        embed = discord.Embed(title=f"🎛 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
         embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
-        embed.add_field(name="💰 Puntata:", value=f"Ȼ{puntata}", inline=True)
-        embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
+        embed.add_field(name="💰 Puntata:", value=f"₻{puntata}", inline=True)
+        embed.add_field(name="🏆 Vincita:", value=f"₻{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
         await interaction.delete_original_response()
@@ -1035,7 +1027,7 @@ class ScommessaView(discord.ui.View):
         except discord.NotFound:
             return
 
-    async def scommetti(self, interaction: discord.Interaction):
+   async def scommetti(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
             return
@@ -1083,22 +1075,21 @@ class ScommessaView(discord.ui.View):
         if vincita > 0:
             nuovo_saldo += vincita
             requests.patch(
-            f"https://api.notion.com/v1/pages/{self.pg['id']}",
-            headers=HEADERS,
-            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+                f"https://api.notion.com/v1/pages/{self.pg['id']}",
+                headers=HEADERS,
+                json={"properties": {"Croniri": {"number": nuovo_saldo}}}
             )
 
             tx_payload = {
-            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-            "properties": {
-            "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-            "Importo": {"number": vincita - scommessa},
-            "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata Ȼ{scommessa}, vincita Ȼ{vincita}"}}]},
-            "Mittente": {"relation": [{"id": self.pg["id"]}]}
+                "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+                "properties": {
+                    "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+                    "Importo": {"number": vincita - scommessa},
+                    "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata ₻{scommessa}, vincita ₻{vincita}"}}]},
+                    "Mittente": {"relation": [{"id": self.pg["id"]}]}
+                }
             }
-            }
-        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
-
+            requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
