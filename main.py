@@ -855,7 +855,7 @@ async def end(interaction: discord.Interaction):
 # Zodiac Wheel Command Structure
 
 ARCANI = {
-    "L’Abisso": "Inverno",
+    "L'Abisso": "Inverno",
     "Il Velo": "Inverno",
     "La Spiga": "Primavera",
     "Il Nodo": "Primavera",
@@ -863,14 +863,14 @@ ARCANI = {
     "La Lama": "Estate",
     "Il Pilastro": "Estate",
     "Il Giogo": "Estate",
-    "L’Ombra": "Autunno",
-    "L’Eco": "Autunno",
+    "L'Ombra": "Autunno",
+    "L'Eco": "Autunno",
     "La Serpe": "Autunno",
     "La Cenere": "Inverno"
 }
 
 ARCANO_IMAGES = {
-    "L’Abisso": "https://i.imgur.com/8iXPVpj.jpeg",
+    "L'Abisso": "https://i.imgur.com/8iXPVpj.jpeg",
     "Il Velo": "https://i.imgur.com/u3HODrA.jpeg",
     "La Spiga": "https://i.imgur.com/8P4we0g.jpeg",
     "Il Nodo": "https://i.imgur.com/mHmKAqn.jpeg",
@@ -878,13 +878,13 @@ ARCANO_IMAGES = {
     "La Lama": "https://i.imgur.com/CSzVlXs.jpeg",
     "Il Pilastro": "https://i.imgur.com/OYCjvXd.png",
     "Il Giogo": "https://i.imgur.com/Shhxmla.jpeg",
-    "L’Ombra": "https://i.imgur.com/P4vbykp.jpeg",
-    "L’Eco": "https://i.imgur.com/k3VAmoe.jpeg",
+    "L'Ombra": "https://i.imgur.com/P4vbykp.jpeg",
+    "L'Eco": "https://i.imgur.com/k3VAmoe.jpeg",
     "La Serpe": "https://i.imgur.com/o3lfIdf.jpeg",
     "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
 }
 
-@tree.command(name="ruota_arcana", description="Gira la ruota degli Arcani e tenta la sorte")
+@tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte")
 async def ruota_arcana(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -929,6 +929,10 @@ class SelezionePG(discord.ui.View):
         await interaction.response.send_modal(ScommessaModal(self.mapping[nome]))
 
 
+def normalizza(s):
+    return s.replace("’", "'").strip()
+
+
 class ScommessaModal(discord.ui.Modal):
     def __init__(self, pg):
         super().__init__(title="Inserisci la tua scommessa")
@@ -951,7 +955,7 @@ class ScommessaModal(discord.ui.Modal):
 
         props = self.pg["properties"]
         nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
-        segni_zodiacali = [v["name"] for v in props["Segno Zodiacale"]["multi_select"]]
+        segni_zodiacali = [normalizza(v["name"]) for v in props["Segno Zodiacale"]["multi_select"]]
         saldo = props["Croniri"]["number"] or 0
 
         if saldo < scommessa:
@@ -966,21 +970,22 @@ class ScommessaModal(discord.ui.Modal):
         )
 
         estratto = random.choice(list(ARCANI.keys()))
-        corrisponde = estratto in segni_zodiacali
-        stagionale = not corrisponde and any(ARCANI.get(s) == ARCANI[estratto] for s in segni_zodiacali)
+        estratto_norm = normalizza(estratto)
+        corrisponde = estratto_norm in segni_zodiacali
+        stagionale = any(ARCANI.get(normalizza(s)) == ARCANI[estratto_norm] for s in segni_zodiacali)
 
         if corrisponde:
             vincita = scommessa * 10
             titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri."
+            descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri!"
         elif stagionale:
             vincita = scommessa * 2
             titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri."
+            descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri!"
         else:
             vincita = 0
             titolo = f"💀 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
-            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa."
+            descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa!"
 
         if vincita > 0:
             nuovo_saldo += vincita
@@ -1012,10 +1017,8 @@ class ScommessaModal(discord.ui.Modal):
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
-        embed.set_footer(text=f"Scommessa: {scommessa} Croniri")
 
         await interaction.channel.send(embed=embed)
-
 
 
 # CODICI PER DEPLOY:
