@@ -19,7 +19,6 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 tree = bot.tree
 
-# Costanti globali
 HEADERS = {
     "Authorization": f"Bearer {NOTION_TOKEN}",
     "Notion-Version": "2022-06-28",
@@ -33,21 +32,8 @@ def normalizza(s):
     
 #CODICE DADO
 
-CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
-ABILITA = [
-    "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
-    "Persuasione", "Intimidazione", "Comando", "Maschera", "Autocontrollo",
-    "Osservare", "Analisi", "Tecnica", "Studio", "Cultura",
-    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
-]
-
-MAPPING_CARATTERISTICHE = {c: c.upper() for c in CARATTERISTICHE}
-MAPPING_ABILITA = {a: a for a in ABILITA}
-SOGLIE = {"Bassa": 1, "Media": 3, "Alta": 5}
-
 @tree.command(name="dado", description="Tira un dado per un tuo personaggio")
 async def dado(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -56,8 +42,13 @@ async def dado(interaction: discord.Interaction):
             "rich_text": {"equals": discord_id}
         }
     }
-    res = requests.post(url, headers=HEADERS, json=payload)
-    data = res.json()
+
+    try:
+        res = requests.post(url, headers=HEADERS, json=payload)
+        data = res.json()
+    except Exception:
+        await interaction.response.send_message("❌ Errore nel contattare il database.", ephemeral=True)
+        return
 
     personaggi = []
     for result in data.get("results", []):
@@ -77,11 +68,12 @@ async def dado(interaction: discord.Interaction):
         personaggi.append(pg_data)
 
     if not personaggi:
-        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
+        await interaction.response.send_message("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
         return
 
     view = DadoView(interaction.user.id, personaggi)
-    await interaction.followup.send("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+    await interaction.response.send_message("Seleziona il personaggio per il tiro:", view=view, ephemeral=True)
+
 
 class DadoView(discord.ui.View):
     def __init__(self, user_id, personaggi):
@@ -102,12 +94,12 @@ class DadoView(discord.ui.View):
             await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
             return
 
-        pg_id = self.pg_select.values[0]
-        self.selected_pg = self.personaggi[pg_id]
+        self.selected_pg = self.personaggi[self.pg_select.values[0]]
         abilita_attive = [a for a in ABILITA if (self.selected_pg.get(a) or 0) > 0]
 
         view = PrimaFaseTiroView(self.user_id, self.selected_pg, abilita_attive)
         await interaction.response.edit_message(content=f"Configura il tiro per {self.selected_pg['Nome']}", view=view)
+
 
 class PrimaFaseTiroView(discord.ui.View):
     def __init__(self, user_id, personaggio, abilita_attive):
@@ -142,7 +134,10 @@ class PrimaFaseTiroView(discord.ui.View):
         self.add_item(self.continua_button)
 
     async def select_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            return
 
     async def continua(self, interaction: discord.Interaction):
         caratteristica = self.char_select.values[0]
@@ -151,6 +146,7 @@ class PrimaFaseTiroView(discord.ui.View):
 
         view = SecondaFaseTiroView(self.user_id, self.personaggio, caratteristica, abilita, bonus)
         await interaction.response.edit_message(content="Imposta Difficoltà e Soglia:", view=view)
+
 
 class SecondaFaseTiroView(discord.ui.View):
     def __init__(self, user_id, personaggio, caratteristica, abilita, bonus):
@@ -180,9 +176,17 @@ class SecondaFaseTiroView(discord.ui.View):
         self.add_item(self.roll_button)
 
     async def select_callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            return
 
     async def roll_dice(self, interaction: discord.Interaction):
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
+
         difficolta = int(self.diff_select.values[0]) if self.diff_select.values else 7
         soglia_nome = self.soglia_select.values[0] if self.soglia_select.values else "Bassa"
         soglia = SOGLIE[soglia_nome]
@@ -192,7 +196,7 @@ class SecondaFaseTiroView(discord.ui.View):
         dado_totale = caratteristica_val + abilita_val + self.bonus
 
         if dado_totale <= 0:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"⚠️ {self.personaggio['Nome']} non ha dadi da tirare. Controlla Caratteristica, Abilità e Bonus selezionati.",
                 ephemeral=True
             )
@@ -220,18 +224,51 @@ class SecondaFaseTiroView(discord.ui.View):
             + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
             + f" + {self.bonus} a **Difficoltà {difficolta}** e **Soglia {soglia_nome}** = {dado_totale}d10\n"
             + f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
-            + f"{esito}",
-            ephemeral=False
+            + f"{esito}"
         )
 
     # CODICE RITIRO STIPENDIO:
 
-CARICA_STIPENDIO = {
-    4: 50,
-    3: 40,
-    2: 25,
-    1: 10
-}
+@tree.command(name="stipendio", description="Ritira lo stipendio per un tuo personaggio")
+async def stipendio(interaction: discord.Interaction):
+    discord_id = str(interaction.user.id)
+    try:
+        await interaction.response.defer(ephemeral=True)
+    except discord.NotFound:
+        return
+
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    payload = {
+        "filter": {
+            "property": "ID Discord",
+            "rich_text": {
+                "equals": discord_id
+            }
+        }
+    }
+    response = requests.post(url, headers=HEADERS, json=payload)
+    data = response.json()
+
+    personaggi = data.get("results", [])
+    if not personaggi:
+        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
+        return
+
+    if len(personaggi) == 1:
+        page_id = personaggi[0]["id"]
+        result = paga_personaggio(page_id)
+        await interaction.followup.send(result, ephemeral=True)
+    else:
+        mapping = {}
+        pg_list = []
+        for pg in personaggi:
+            nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+            mapping[nome_pg] = pg["id"]
+            pg_list.append(nome_pg)
+
+        view = StipendioView(pg_list, mapping, interaction.user.id)
+        await interaction.followup.send("Scegli per quale PG vuoi ritirare lo stipendio:", view=view, ephemeral=True)
+
 
 class StipendioView(discord.ui.View):
     def __init__(self, pg_list, mapping, user_id):
@@ -244,6 +281,7 @@ class StipendioView(discord.ui.View):
         ]
         self.add_item(StipendioSelect(options, mapping, user_id))
 
+
 class StipendioSelect(discord.ui.Select):
     def __init__(self, options, mapping, user_id):
         super().__init__(placeholder="Scegli il personaggio", min_values=1, max_values=1, options=options)
@@ -254,11 +292,16 @@ class StipendioSelect(discord.ui.Select):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
             return
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            return
 
         pg_nome = self.values[0]
         page_id = self.mapping[pg_nome]
         result = paga_personaggio(page_id)
-        await interaction.response.edit_message(content=result, view=None)
+        await interaction.followup.send(result, ephemeral=True)
+
 
 def paga_personaggio(page_id):
     oggi = datetime.utcnow().date()
@@ -300,49 +343,16 @@ def paga_personaggio(page_id):
     else:
         return f"❌ Errore nel pagare {nome_pg}."
 
-@tree.command(name="stipendio", description="Ritira lo stipendio per un tuo personaggio")
-async def stipendio(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
-    discord_id = str(interaction.user.id)
-    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
-    payload = {
-        "filter": {
-            "property": "ID Discord",
-            "rich_text": {
-                "equals": discord_id
-            }
-        }
-    }
-    response = requests.post(url, headers=HEADERS, json=payload)
-    data = response.json()
-
-    personaggi = data.get("results", [])
-    if not personaggi:
-        await interaction.followup.send("❌ Non ho trovato personaggi legati al tuo ID Discord.", ephemeral=True)
-        return
-
-    if len(personaggi) == 1:
-        page_id = personaggi[0]["id"]
-        result = paga_personaggio(page_id)
-        await interaction.followup.send(result, ephemeral=True)
-    else:
-        mapping = {}
-        pg_list = []
-        for pg in personaggi:
-            nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-            mapping[nome_pg] = pg["id"]
-            pg_list.append(nome_pg)
-
-        view = StipendioView(pg_list, mapping, interaction.user.id)
-        await interaction.channel.send("Scegli per quale PG vuoi ritirare lo stipendio:", view=view, ephemeral=True)
 
     # CODICE TRASFERIMENTO SOLDI:
 
 @tree.command(name="trasferisci", description="Trasferisci Croniri da un tuo personaggio a un altro")
 async def trasferisci(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
     user_id = str(interaction.user.id)
+    try:
+        await interaction.response.defer(ephemeral=True)
+    except discord.NotFound:
+        return
 
     res = requests.post(f"https://api.notion.com/v1/databases/{DATABASE_ID}/query", headers=HEADERS, json={
         "filter": {"property": "ID Discord", "rich_text": {"equals": user_id}}
@@ -365,6 +375,11 @@ async def trasferisci(interaction: discord.Interaction):
             await inter.response.send_message("Non puoi usare questo menu.", ephemeral=True)
             return
 
+        try:
+            await inter.response.defer()
+        except discord.NotFound:
+            return
+
         mittente_id = mittente_select.values[0]
         mittente_pg = next(pg for pg in miei_pg if pg["id"] == mittente_id)
         mittente_nome = mittente_pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
@@ -378,7 +393,7 @@ async def trasferisci(interaction: discord.Interaction):
         ]
 
         if not pg_dest:
-            await inter.response.send_message("❌ Nessun destinatario disponibile.", ephemeral=True)
+            await inter.followup.send("❌ Nessun destinatario disponibile.", ephemeral=True)
             return
 
         options_dest = [
@@ -393,6 +408,10 @@ async def trasferisci(interaction: discord.Interaction):
             if dest_inter.user.id != interaction.user.id:
                 await dest_inter.response.send_message("Non puoi usare questo menu.", ephemeral=True)
                 return
+            try:
+                await dest_inter.response.defer()
+            except discord.NotFound:
+                return
 
             destinatario_id = dest_select.values[0]
             destinatario_pg = next(pg for pg in pg_dest if pg["id"] == destinatario_id)
@@ -404,7 +423,7 @@ async def trasferisci(interaction: discord.Interaction):
             )
 
         dest_select.callback = dest_callback
-        await inter.response.send_message("Seleziona il destinatario:", view=view_dest, ephemeral=True)
+        await inter.followup.send("Seleziona il destinatario:", view=view_dest, ephemeral=True)
 
     mittente_select.callback = mittente_callback
     await interaction.followup.send("Hai più di un PG. Scegli il mittente:", view=mittente_view, ephemeral=True)
@@ -429,7 +448,10 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         self.add_item(self.causale)
 
     async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
 
         user_key = f"{interaction.user.id}-{self.mittente_id}-{self.destinatario_id}"
         now = datetime.utcnow().timestamp()
@@ -459,7 +481,7 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         )
 
         res_dest = requests.get(f"https://api.notion.com/v1/pages/{self.destinatario_id}", headers=HEADERS)
-        saldo_dest = res_dest.json()["properties"]["Croniri"]["number"] or 0
+        saldo_dest = res_dest.json()["properties"]["Croniri"].get("number", 0)
         new_dest = saldo_dest + importo
 
         requests.patch(
@@ -481,19 +503,17 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
         messaggio_pubblico = (
-            f"💸 **{self.mittente_nome}** ha trasferito Ȼ{importo} a "
-            f" **{self.destinatario_nome}**. (<@{interaction.user.id}>, <@{self.destinatario_user_id}>)\n"
+            f"💸 **{self.mittente_nome}** ha trasferito Ȼ{importo} a **{self.destinatario_nome}**. "
+            f"(<@{interaction.user.id}>, <@{self.destinatario_user_id}>)\n"
             f"📄 Causale: {self.causale.value.strip()}"
         )
 
         await interaction.channel.send(messaggio_pubblico)
 
-#GRATTA I SANTI
+############################### GRATTA I SANTI ###############################
 
 @tree.command(name="gratta", description="Tenta la fortuna con Gratta i Santi")
 async def gratta(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -502,18 +522,22 @@ async def gratta(interaction: discord.Interaction):
             "rich_text": {"equals": discord_id}
         }
     }
-    res = requests.post(url, headers=HEADERS, json=payload)
-    data = res.json()
+    try:
+        res = requests.post(url, headers=HEADERS, json=payload)
+        data = res.json()
+    except Exception:
+        await interaction.response.send_message("❌ Errore nel contattare il database.", ephemeral=True)
+        return
 
     personaggi = data.get("results", [])
     if not personaggi:
-        await interaction.followup.send("❌ Nessun PG trovato collegato al tuo ID Discord.", ephemeral=True)
+        await interaction.response.send_message("❌ Nessun PG trovato collegato al tuo ID Discord.", ephemeral=True)
         return
 
     if len(personaggi) == 1:
         pg = personaggi[0]
         view = GrattaSantiView(pg, interaction.user.id)
-        await interaction.followup.send("🎰 Seleziona la puntata e gratta i santi!", view=view, ephemeral=True)
+        await interaction.response.send_message("🎰 Seleziona la puntata e gratta i santi!", view=view, ephemeral=True)
     else:
         mapping = {}
         options = []
@@ -539,7 +563,7 @@ async def gratta(interaction: discord.Interaction):
                 view = GrattaSantiView(pg, self.user_id)
                 await i.response.edit_message(content="🎰 Seleziona la puntata e gratta i santi!", view=view)
 
-        await interaction.followup.send("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
+        await interaction.response.send_message("Hai più di un PG. Scegli con quale giocare:", view=SelezionePG(interaction.user.id), ephemeral=True)
 
 
 class GrattaSantiView(discord.ui.View):
@@ -569,17 +593,23 @@ class GrattaSantiView(discord.ui.View):
             await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
             return
         self.importo = int(self.select.values[0])
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            return
 
     async def submit(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
             return
 
-        await interaction.response.defer(thinking=True)
+        try:
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
+            return
 
         nome_pg = self.pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-        saldo = self.pg["properties"]["Croniri"]["number"] or 0
+        saldo = self.pg["properties"]["Croniri"].get("number", 0)
         puntata = self.importo
 
         if saldo < puntata:
@@ -630,7 +660,6 @@ class GrattaSantiView(discord.ui.View):
                 messaggio = "❌ Ritenta! Sarai più fortunato!"
 
         vincita = int(puntata * moltiplicatore)
-
         if vincita > 0:
             nuovo_saldo += vincita
             requests.patch(
@@ -638,26 +667,6 @@ class GrattaSantiView(discord.ui.View):
                 headers=HEADERS,
                 json={"properties": {"Croniri": {"number": nuovo_saldo}}}
             )
-            requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
-                "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-                "properties": {
-                    "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                    "Importo": {"number": vincita},
-                    "Causale": {"rich_text": [{"text": {"content": f"Vincita grattaisanti da {nome_pg}"}}]},
-                    "Destinatario": {"relation": [{"id": self.pg["id"]}]}
-                }
-            })
-
-        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
-            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-            "properties": {
-                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                "Importo": {"number": -puntata},
-                "Causale": {"rich_text": [{"text": {"content": f"Puntata grattaisanti da {nome_pg}"}}]},
-                "Mittente": {"relation": [{"id": self.pg["id"]}]},
-                "Destinatario": {"rich_text": [{"text": {"content": "Gratta i Santi"}}]}
-            }
-        })
 
         embed = discord.Embed(title=f"🎫 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
@@ -669,14 +678,13 @@ class GrattaSantiView(discord.ui.View):
         await interaction.channel.send(embed=embed)
 
 
-
 # === LIVELLAMENTO PG ===
 
 ABILITA_LIST = [
     "Atletica", "Mira", "Combattimento", "Riflessi", "Robustezza",
     "Analisi", "Osservare", "Studio", "Cultura", "Tecnica",
     "Autocontrollo", "Persuasione", "Comando", "Maschera", "Intimidazione",
-    "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
+    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
 ]
 
 TRATTI_PREGI = ["Intelligente", "Coraggioso", "Empatico"]
@@ -858,41 +866,10 @@ async def end(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("Seleziona il PG per registrare la giocata:", view=EndRoleView(pg_list, interaction.user.id), ephemeral=True)
 
-# Zodiac Wheel Command Structure
-ARCANI = {
-    "L'Abisso": "Inverno",
-    "Il Velo": "Inverno",
-    "La Spiga": "Primavera",
-    "Il Nodo": "Primavera",
-    "Il Petalo": "Primavera",
-    "La Lama": "Estate",
-    "Il Pilastro": "Estate",
-    "Il Giogo": "Estate",
-    "L'Ombra": "Autunno",
-    "L'Eco": "Autunno",
-    "La Serpe": "Autunno",
-    "La Cenere": "Inverno"
-}
-
-ARCANO_IMAGES = {
-    "L'Abisso": "https://i.imgur.com/8iXPVpj.jpeg",
-    "Il Velo": "https://i.imgur.com/u3HODrA.jpeg",
-    "La Spiga": "https://i.imgur.com/8P4we0g.jpeg",
-    "Il Nodo": "https://i.imgur.com/mHmKAqn.jpeg",
-    "Il Petalo": "https://i.imgur.com/Wy9J7NX.jpeg",
-    "La Lama": "https://i.imgur.com/CSzVlXs.jpeg",
-    "Il Pilastro": "https://i.imgur.com/OYCjvXd.png",
-    "Il Giogo": "https://i.imgur.com/Shhxmla.jpeg",
-    "L'Ombra": "https://i.imgur.com/P4vbykp.jpeg",
-    "L'Eco": "https://i.imgur.com/k3VAmoe.jpeg",
-    "La Serpe": "https://i.imgur.com/o3lfIdf.jpeg",
-    "La Cenere": "https://i.imgur.com/oLfN1b9.jpeg"
-}
+####################### RUOTA ARCANA ##########################
 
 @tree.command(name="ruotaarcana", description="Gira la ruota degli Arcani e tenta la sorte!")
 async def ruota_arcana(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
@@ -902,16 +879,24 @@ async def ruota_arcana(interaction: discord.Interaction):
         }
     }
 
-    res = requests.post(url, headers=HEADERS, json=payload)
-    data = res.json()
-    personaggi = data.get("results", [])
-
-    if not personaggi:
-        await interaction.followup.send("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+    try:
+        res = requests.post(url, headers=HEADERS, json=payload)
+        data = res.json()
+    except Exception:
+        await interaction.response.send_message("❌ Errore nel contattare il database.", ephemeral=True)
         return
 
-    view = SelezionePG(interaction.user.id, personaggi)
-    await interaction.followup.send("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
+    personaggi = data.get("results", [])
+    if not personaggi:
+        await interaction.response.send_message("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
+        return
+
+    if len(personaggi) == 1:
+        view = ScommessaView(personaggi[0], interaction.user.id)
+        await interaction.response.send_message("💫 Scegli quanto vuoi scommettere:", view=view, ephemeral=True)
+    else:
+        view = SelezionePG(interaction.user.id, personaggi)
+        await interaction.response.send_message("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
 
 
 class SelezionePG(discord.ui.View):
@@ -931,14 +916,19 @@ class SelezionePG(discord.ui.View):
             await interaction.response.send_message("Non puoi usare questo menu.", ephemeral=True)
             return
         nome = self.select.values[0]
-        await interaction.response.send_modal(ScommessaModal(self.mapping[nome]))
+        pg = self.mapping[nome]
+        view = ScommessaView(pg, self.user_id)
+        await interaction.response.edit_message(content="💫 Scegli quanto vuoi scommettere:", view=view)
 
 
-class ScommessaModal(discord.ui.Modal):
-    def __init__(self, pg):
-        super().__init__(title="Scegli la tua scommessa")
+class ScommessaView(discord.ui.View):
+    def __init__(self, pg, user_id):
+        super().__init__(timeout=60)
         self.pg = pg
-        self.importo_select = discord.ui.Select(
+        self.user_id = user_id
+        self.importo = 10
+
+        self.select = discord.ui.Select(
             placeholder="Seleziona l'importo",
             options=[
                 discord.SelectOption(label="10 Ȼ", value="10"),
@@ -946,22 +936,35 @@ class ScommessaModal(discord.ui.Modal):
                 discord.SelectOption(label="50 Ȼ", value="50")
             ]
         )
-        self.importo_select.callback = self.on_select
-        self.add_item(self.importo_select)
+        self.select.callback = self.select_callback
+        self.add_item(self.select)
 
-    async def on_select(self, interaction: discord.Interaction):
+        self.scommetti_button = discord.ui.Button(label="Scommetti!", style=discord.ButtonStyle.success)
+        self.scommetti_button.callback = self.scommetti
+        self.add_item(self.scommetti_button)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
+            return
+        self.importo = int(self.select.values[0])
         await interaction.response.defer()
 
+    async def scommetti(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
+            return
+
         try:
-            scommessa = int(self.importo_select.values[0])
-        except ValueError:
-            await interaction.followup.send("❌ L'importo selezionato non è valido.", ephemeral=True)
+            await interaction.response.defer(thinking=True)
+        except discord.NotFound:
             return
 
         props = self.pg["properties"]
         nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
         segni_zodiacali = [normalizza(v["name"]) for v in props["Segno Zodiacale"]["multi_select"]]
-        saldo = props["Croniri"]["number"] or 0
+        saldo = props["Croniri"].get("number", 0)
+        scommessa = self.importo
 
         if saldo < scommessa:
             await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Croniri.", ephemeral=True)
@@ -978,13 +981,13 @@ class ScommessaModal(discord.ui.Modal):
         estratto_norm = normalizza(estratto)
         corrisponde = estratto_norm in segni_zodiacali
         stagionale = any(ARCANI.get(normalizza(s)) == ARCANI[estratto_norm] for s in segni_zodiacali)
-        
+
         if corrisponde:
             vincita = scommessa * 3
             titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
             descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri!"
         elif stagionale:
-            vincita = math.ceil(scommessa * 1.5)
+            vincita = int(scommessa * 1.5)
             titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
             descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri!"
         else:
@@ -999,33 +1002,11 @@ class ScommessaModal(discord.ui.Modal):
                 headers=HEADERS,
                 json={"properties": {"Croniri": {"number": nuovo_saldo}}}
             )
-            requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
-                "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-                "properties": {
-                    "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                    "Importo": {"number": vincita},
-                    "Causale": {"rich_text": [{"text": {"content": f"Vincita Ruota Arcana da {nome_pg}"}}]},
-                    "Destinatario": {"relation": [{"id": self.pg["id"]}]}
-                }
-            })
-
-        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
-            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
-            "properties": {
-                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-                "Importo": {"number": -scommessa},
-                "Causale": {"rich_text": [{"text": {"content": f"Scommessa Ruota Arcana da {nome_pg}"}}]},
-                "Mittente": {"relation": [{"id": self.pg["id"]}]},
-                "Destinatario": {"rich_text": [{"text": {"content": "Ruota degli Arcani"}}]}
-            }
-        })
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
 
         await interaction.channel.send(embed=embed)
-
-
 
 # CODICI PER DEPLOY:
 
