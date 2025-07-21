@@ -1202,16 +1202,15 @@ CROSTOLO_FRASES = [
     "Continua a provarci. Le catastrofi non si fanno da sole.",
     "Hai tutto il necessario per fallire con stile.",
     "Oggi persino il tuo riflesso ha alzato gli occhi al cielo.",
-    "Sei un enigma. E nessuno vuole risolverlo."
+    "Sei un enigma. E nessuno vuole risolverlo.",
+    "Sorpresa! Questo Crostolo non ha alcun significato mistico... ma ti becchi 500Ȼ. Contento?",
 ]
 
 @tree.command(name="crostolo", description="Apri un Crostolo della Fortuna per un tuo personaggio!")
 async def crostolo(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
-    payload = {
-        "filter": {"property": "ID Discord", "rich_text": {"equals": discord_id}}
-    }
+    payload = {"filter": {"property": "ID Discord", "rich_text": {"equals": discord_id}}}
 
     try:
         res = requests.post(url, headers=HEADERS, json=payload)
@@ -1272,17 +1271,35 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
     )
 
     frase = random.choice(CROSTOLO_FRASES)
+    vincita_speciale = 0
 
-    tx_payload = {
+    if frase == "Sorpresa! Questo Crostolo non ha alcun significato mistico... ma ti becchi 500Ȼ. Contento?":
+        vincita_speciale = 500
+        nuovo_saldo += vincita_speciale
+        requests.patch(
+            f"https://api.notion.com/v1/pages/{pg_id}",
+            headers=HEADERS,
+            json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+        )
+        requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
+            "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+            "properties": {
+                "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+                "Importo": {"number": vincita_speciale},
+                "Causale": {"rich_text": [{"text": {"content": "Vincita Crostolo Speciale"}}]},
+                "Mittente": {"relation": [{"id": pg_id}]}
+            }
+        })
+
+    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json={
         "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
         "properties": {
             "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-            "Importo": {"number": 5},
+            "Importo": {"number": -5},
             "Causale": {"rich_text": [{"text": {"content": "Crostolo della Fortuna"}}]},
             "Mittente": {"relation": [{"id": pg_id}]}
         }
-    }
-    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+    })
 
     embed = discord.Embed(
         title=f"✨ {nome_pg} ha pagato 5Ȼ per un Crostolo della Fortuna!",
@@ -1290,6 +1307,8 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
         color=discord.Color.orange()
     )
     embed.set_image(url="https://i.imgur.com/yBEUHo4.jpeg")
+    if vincita_speciale:
+        embed.add_field(name="🏆 Premio Speciale", value=f"**+Ȼ500**", inline=False)
 
     await interaction.delete_original_response()
     await interaction.channel.send(embed=embed)
