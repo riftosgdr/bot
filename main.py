@@ -343,7 +343,7 @@ class StipendioSelect(discord.ui.Select):
         page_id = self.mapping[pg_nome]
         result = paga_personaggio(page_id)
         await interaction.delete_original_response()
-        await interaction.followup.send(result, ephemeral=True)
+        await interaction.channel.send(result)
 
 
 def paga_personaggio(page_id):
@@ -708,6 +708,18 @@ class GrattaSantiView(discord.ui.View):
                 json={"properties": {"Croniri": {"number": nuovo_saldo}}}
             )
 
+tx_payload = {
+    "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+    "properties": {
+        "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+        "Importo": {"number": vincita - puntata},
+        "Causale": {"rich_text": [{"text": {"content": f"Gratta i Santi: puntata Ȼ{puntata}, vincita Ȼ{vincita}"}}]},
+        "Mittente": {"relation": [{"id": self.pg["id"]}]}
+    }
+}
+requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+
+
         embed = discord.Embed(title=f"🎫 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
         embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
@@ -1070,12 +1082,24 @@ class ScommessaView(discord.ui.View):
             descrizione = f"L'Arcano estratto è **{estratto}**. Nessuna vincita. Hai perso la tua scommessa!"
 
         if vincita > 0:
-            nuovo_saldo += vincita
-            requests.patch(
-                f"https://api.notion.com/v1/pages/{self.pg['id']}",
-                headers=HEADERS,
-                json={"properties": {"Croniri": {"number": nuovo_saldo}}}
-            )
+    nuovo_saldo += vincita
+    requests.patch(
+        f"https://api.notion.com/v1/pages/{self.pg['id']}",
+        headers=HEADERS,
+        json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+    )
+
+tx_payload = {
+    "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+    "properties": {
+        "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+        "Importo": {"number": vincita - scommessa},
+        "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata Ȼ{scommessa}, vincita Ȼ{vincita}"}}]},
+        "Mittente": {"relation": [{"id": self.pg["id"]}]}
+    }
+}
+requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+
 
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
