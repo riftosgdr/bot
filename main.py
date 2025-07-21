@@ -42,6 +42,11 @@ MAPPING_CARATTERISTICHE = {"Vigore": "VIGORE",
                            "Presenza": "PRESENZA",
                            "Acume": "ACUME",
                            "Risonanza": "RISONANZA"}
+SOGLIE = {
+    "Bassa": 1,
+    "Media": 3,
+    "Alta": 5
+}
 
 MAPPING_ABILITA = {a: a for a in ABILITA}
 
