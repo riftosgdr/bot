@@ -134,12 +134,19 @@ class PrimaFaseTiroView(discord.ui.View):
         self.add_item(self.continua_button)
 
     async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Non puoi usare questo menu.", ephemeral=True)
+            return
         try:
             await interaction.response.defer()
         except discord.NotFound:
             return
 
     async def continua(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
+            return
+
         caratteristica = self.char_select.values[0]
         abilita = self.abilita_select.values[0] if self.abilita_select.values else None
         bonus = int(self.bonus_select.values[0]) if self.bonus_select.values else 0
@@ -176,12 +183,18 @@ class SecondaFaseTiroView(discord.ui.View):
         self.add_item(self.roll_button)
 
     async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
+            return
         try:
             await interaction.response.defer()
         except discord.NotFound:
             return
 
     async def roll_dice(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo bottone non è tuo!", ephemeral=True)
+            return
         try:
             await interaction.response.defer(thinking=True)
         except discord.NotFound:
@@ -944,7 +957,10 @@ class ScommessaView(discord.ui.View):
             await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
             return
         self.importo = int(self.select.values[0])
-        await interaction.response.defer()
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            return
 
     async def scommetti(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
