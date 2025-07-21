@@ -965,12 +965,15 @@ async def ruota_arcana(interaction: discord.Interaction):
         await interaction.response.send_message("❌ Nessun personaggio trovato associato al tuo ID.", ephemeral=True)
         return
 
+    await interaction.response.defer(ephemeral=True)
+
     if len(personaggi) == 1:
         view = ScommessaView(personaggi[0], interaction.user.id)
-        await interaction.response.send_message("💫 Scegli quanto vuoi scommettere:", view=view, ephemeral=True)
+        await interaction.followup.send("💫 Scegli quanto vuoi scommettere:", view=view, ephemeral=True)
     else:
         view = SelezionePG(interaction.user.id, personaggi)
-        await interaction.response.send_message(view=view, ephemeral=True)
+        await interaction.followup.send(view=view, ephemeral=True)
+
 
 class SelezionePG(discord.ui.View):
     def __init__(self, user_id, personaggi):
