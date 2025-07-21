@@ -408,10 +408,6 @@ async def trasferisci(interaction: discord.Interaction):
             if dest_inter.user.id != interaction.user.id:
                 await dest_inter.response.send_message("Non puoi usare questo menu.", ephemeral=True)
                 return
-            try:
-                await dest_inter.response.defer()
-            except discord.NotFound:
-                return
 
             destinatario_id = dest_select.values[0]
             destinatario_pg = next(pg for pg in pg_dest if pg["id"] == destinatario_id)
