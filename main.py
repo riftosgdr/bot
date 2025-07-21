@@ -1205,7 +1205,7 @@ CROSTOLO_FRASES = [
     "Sei un enigma. E nessuno vuole risolverlo."
 ]
 
-@tree.command(name="crostolo", description="Apri un Crostolo della Fortuna per un tuo personaggio")
+@tree.command(name="crostolo", description="Apri un Crostolo della Fortuna per un tuo personaggio!")
 async def crostolo(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
@@ -1277,7 +1277,7 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
         "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
         "properties": {
             "Data": {"date": {"start": datetime.utcnow().isoformat()}},
-            "Importo": {"number": -5},
+            "Importo": {"number": 5},
             "Causale": {"rich_text": [{"text": {"content": "Crostolo della Fortuna"}}]},
             "Mittente": {"relation": [{"id": pg_id}]}
         }
@@ -1285,8 +1285,8 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
     requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
     embed = discord.Embed(
-        title=f"✨ {nome_pg} ha aperto un Crostolo della Fortuna!",
-        description=frase,
+        title=f"✨ {nome_pg} ha pagato 5Ȼ per un Crostolo della Fortuna!",
+        description=f"*\"{frase}\"*",
         color=discord.Color.orange()
     )
     embed.set_image(url="https://i.imgur.com/yBEUHo4.jpeg")
