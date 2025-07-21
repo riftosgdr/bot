@@ -32,6 +32,15 @@ def normalizza(s):
     
 #CODICE DADO
 
+CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]ABILITA = [
+    "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",    "Persuasione", "Intimidazione", "Comando", "Maschera", "Autocontrollo",
+    "Osservare", "Analisi", "Tecnica", "Studio", "Cultura",    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
+]
+MAPPING_CARATTERISTICHE = {    "Vigore": "VIGORE",
+    "Presenza": "PRESENZA",    "Acume": "ACUME",
+    "Risonanza": "RISONANZA"}
+MAPPING_ABILITA = {a: a for a in ABILITA}
+
 @tree.command(name="dado", description="Tira un dado per un tuo personaggio")
 async def dado(interaction: discord.Interaction):
     discord_id = str(interaction.user.id)
@@ -232,6 +241,7 @@ class SecondaFaseTiroView(discord.ui.View):
         else:
             esito = "❌ Fallimento."
 
+        await interaction.delete_original_response()
         await interaction.channel.send(
             f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
             + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
@@ -278,6 +288,7 @@ async def stipendio(interaction: discord.Interaction):
     if len(personaggi) == 1:
         page_id = personaggi[0]["id"]
         result = paga_personaggio(page_id)
+        await interaction.delete_original_response()
         await interaction.followup.send(result, ephemeral=True)
     else:
         mapping = {}
@@ -321,6 +332,7 @@ class StipendioSelect(discord.ui.Select):
         pg_nome = self.values[0]
         page_id = self.mapping[pg_nome]
         result = paga_personaggio(page_id)
+        await interaction.delete_original_response()
         await interaction.followup.send(result, ephemeral=True)
 
 
@@ -525,6 +537,7 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             f"📄 Causale: {self.causale.value.strip()}"
         )
 
+        await interaction.delete_original_response()
         await interaction.channel.send(messaggio_pubblico)
 
 ############################### GRATTA I SANTI ###############################
@@ -692,6 +705,7 @@ class GrattaSantiView(discord.ui.View):
         embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
+        await interaction.delete_original_response()
         await interaction.channel.send(embed=embed)
 
 
@@ -1056,6 +1070,7 @@ class ScommessaView(discord.ui.View):
         embed = discord.Embed(title=titolo, description=descrizione, color=discord.Color.purple())
         embed.set_image(url=ARCANO_IMAGES.get(estratto, ""))
 
+        await interaction.delete_original_response()
         await interaction.channel.send(embed=embed)
 
 # CODICI PER DEPLOY:
