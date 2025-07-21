@@ -705,7 +705,7 @@ class GrattaSantiView(discord.ui.View):
                 "properties": {
                     "Data": {"date": {"start": datetime.utcnow().isoformat()}},
                     "Importo": {"number": vincita - puntata},
-                    "Causale": {"rich_text": [{"text": {"content": f"Gratta i Santi: puntata ₻{puntata}, vincita ₻{vincita}"}}]},
+                    "Causale": {"rich_text": [{"text": {"content": f"Gratta i Santi: puntata Ȼ{puntata}, vincita Ȼ{vincita}"}}]},
                     "Mittente": {"relation": [{"id": self.pg["id"]}]}
                 }
             }
@@ -714,8 +714,8 @@ class GrattaSantiView(discord.ui.View):
         embed = discord.Embed(title=f"🎛 {nome_pg} ha grattato i Santi!", color=discord.Color.gold())
         embed.add_field(name="🧩 Santi Estratti:", value=" | ".join(nomi), inline=False)
         embed.add_field(name="🎯 Esito:", value=messaggio, inline=False)
-        embed.add_field(name="💰 Puntata:", value=f"₻{puntata}", inline=True)
-        embed.add_field(name="🏆 Vincita:", value=f"₻{vincita}", inline=True)
+        embed.add_field(name="💰 Puntata:", value=f"Ȼ{puntata}", inline=True)
+        embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
         await interaction.delete_original_response()
@@ -1088,7 +1088,7 @@ class ScommessaView(discord.ui.View):
                 "properties": {
                     "Data": {"date": {"start": datetime.utcnow().isoformat()}},
                     "Importo": {"number": vincita - scommessa},
-                    "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata ₻{scommessa}, vincita ₻{vincita}"}}]},
+                    "Causale": {"rich_text": [{"text": {"content": f"Ruota Arcana: puntata Ȼ{scommessa}, vincita Ȼ{vincita}"}}]},
                     "Mittente": {"relation": [{"id": self.pg["id"]}]}
                 }
             }
@@ -1099,6 +1099,201 @@ class ScommessaView(discord.ui.View):
 
         await interaction.delete_original_response()
         await interaction.channel.send(embed=embed)
+
+# === CROSTOLO DELLA FORTUNA ===
+
+CROSTOLO_FRASES = [
+    "Il cammino più semplice nasconde i sassi più acuminati.",
+    "Attendi la marea: essa porta e toglie ciò che serve.",
+    "Chi osserva senza fretta vede il vero disegno.",
+    "Il tuo passo oggi incide il domani di altri.",
+    "C'è luce anche in una stanza chiusa, se il cuore si apre.",
+    "Ogni attesa ha un frutto. Anche la tua.",
+    "Non parlare ora. L’ascolto è la chiave di questa giornata.",
+    "Quel che ti sfugge, forse ti salva.",
+    "Le parole giuste arrivano solo dopo il silenzio.",
+    "Sii come l’inchiostro: silenzioso, ma indelebile.",
+    "L’alba non è mai così lontana come sembra.",
+    "Le chiavi che cerchi sono nella tua stessa tasca.",
+    "Il vento che ti confonde ti sta anche spingendo.",
+    "Fidati del dubbio: è lui che ha fatto nascere le stelle.",
+    "Nel volto che eviti si nasconde una risposta.",
+    "Oggi è un giorno che chiede attenzione, non azione.",
+    "Nessuno sa cosa accadrà, ma tu sei pronto comunque.",
+    "La verità ha mille maschere. Ne riconoscerai una.",
+    "Sei già oltre il punto di svolta.",
+    "Il tempo ti osserva. Non fare finta di nulla.",
+    "Il suo sguardo è un portale verso tutto ciò che temevano chiamare amore.",
+    "Due cuori danzano più silenziosamente di due piume in volo.",
+    "Ti pensa quando cade il silenzio, e lì sei reale.",
+    "Il tuo nome abita nelle sue preghiere non dette.",
+    "Il destino ha scritto il vostro incontro con inchiostro rubato alla luna.",
+    "Le sue mani ricordano il tuo volto meglio dello specchio.",
+    "Non sa come dirtelo, ma ti ama come la notte ama il chiarore velato.",
+    "Avete ballato in sogno? Allora è già reale.",
+    "Ti attende, ogni giorno, nel punto esatto dove finisce il respiro.",
+    "Il suo cuore batte una nota più forte quando ti nomina.",
+    "L’amore vi cerca ogni volta che vi perdete.",
+    "Ti ama nel modo in cui solo i fiori sanno amare il sole.",
+    "I suoi pensieri ti vestono di seta ogni notte.",
+    "Due anime si sono promesse molto prima di nascere.",
+    "Ogni distanza fra voi è solo un attimo in ritardo.",
+    "Ti sogna con la precisione di un cartografo perduto.",
+    "Il tuo sorriso è la sua unica direzione.",
+    "Ti ama come i poeti temono scrivere: troppo.",
+    "Siete stati scritti sullo stesso foglio di destino.",
+    "In un altro tempo, vi siete già scelti mille volte.",
+    "Oggi una farfalla ti giudicherà. E avrà ragione.",
+    "Una piuma cadrà davanti a te: non ignorarla.",
+    "Gli idromuli stanno ridendo. Tu saprai perché domani.",
+    "L’odore del rosmarino ti seguirà. È un avvertimento.",
+    "Se sogni un corvo, digli che hai capito.",
+    "Il tuo riflesso ha opinioni forti. Non contraddirlo oggi.",
+    "Hai già parlato troppo con le ombre. È tempo di luce.",
+    "Il tuo futuro sta dormendo in un vaso di terracotta.",
+    "Le scale oggi potrebbero portarti altrove. Attento a salirle.",
+    "Un sorriso falso ti rivelerà una verità autentica.",
+    "Non fidarti del secondo cucchiaino. Il primo è complice.",
+    "Il tuo respiro sa cose che la tua mente ancora ignora.",
+    "Oggi il vento parla antico. Traduce solo chi ascolta col petto.",
+    "Un sogno interrotto ti chiederà vendetta.",
+    "Oggi una sedia vuota ti giudicherà.",
+    "La tua ombra ha preso un impegno senza di te.",
+    "Non attraversare tre archi di fila. Il quarto è trappola.",
+    "Ti verrà in mente un nome mai sentito. Annotalo.",
+    "Qualcosa di importante è nascosto dietro un rumore.",
+    "Un petalo caduto oggi è un segno antico.",
+    "Oggi il tuo passo pesa: qualcosa ti segue.",
+    "Il tuo passato ha lasciato una lettera sotto il cuscino.",
+    "Evita specchi storti. Riflettono intenzioni.",
+    "Una voce fuori posto rivelerà la chiave.",
+    "Non credere al profumo che ti attira: mente.",
+    "Una parola detta per sbaglio sarà profezia.",
+    "Oggi un animale ti guarderà troppo a lungo. Ringrazia.",
+    "Il pavimento scricchiola per dire qualcosa.",
+    "Dietro quella porta che eviti... c’è un te che non hai ancora conosciuto.",
+    "Ogni tre respiri, pensa a chi hai dimenticato. Ti parlerà comunque.",
+    "Oggi sei il protagonista del disastro. Bravo.",
+    "La tua opinione è preziosa. Come un quadro rovesciato.",
+    "Oggi non dire nulla. È meglio.",
+    "Hai ragione. Ma solo nella tua personale commedia.",
+    "Oggi sei il vaso di coccio in una sala piena di mechaelefanti. Buona fortuna.",
+    "Continua così e sarai ricordato... come esempio da evitare.",
+    "Se il silenzio è d’oro, oggi sei una miniera chiusa.",
+    "Hai fatto del tuo meglio. Ed era meglio evitare.",
+    "Sii te stesso. Ma non proprio adesso.",
+    "Un genio silenzioso ti ha scelto. Poi ha cambiato idea.",
+    "Parlare troppo ti ha portato qui. Complimenti.",
+    "Hai chiesto un segno. Ignorerai anche questo.",
+    "Siamo tutti destinati a qualcosa. Tu, probabilmente a ripetere l’errore.",
+    "Ti giudicano? È il minimo.",
+    "Il tuo piano ha un solo difetto: tutto.",
+    "Hai vinto il premio per il miglior tentativo inutile.",
+    "Non confondere intuizione con capriccio. Di nuovo.",
+    "Sei sulla buona strada… per un pasticcio epocale.",
+    "Ogni tua scelta oggi avrà effetti. Nessuno positivo.",
+    "I tuoi silenzi gridano. Ma di solito sciocchezze.",
+    "Non tutti i giorni puoi brillare. Oggi, ad esempio, sei opaco.",
+    "La fortuna bussa. Tu però sei occupato a dire sciocchezze.",
+    "Un consiglio? Fingiti saggio. È l’unica via.",
+    "Oggi anche gli astri si sono girati dall’altra parte.",
+    "Ridi pure. Ma sei tu la barzelletta.",
+    "Oggi hai l’intuizione di una sedia vuota.",
+    "Continua a provarci. Le catastrofi non si fanno da sole.",
+    "Hai tutto il necessario per fallire con stile.",
+    "Oggi persino il tuo riflesso ha alzato gli occhi al cielo.",
+    "Sei un enigma. E nessuno vuole risolverlo."
+]
+
+@tree.command(name="crostolo", description="Apri un Crostolo della Fortuna per un tuo personaggio")
+async def crostolo(interaction: discord.Interaction):
+    discord_id = str(interaction.user.id)
+    url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
+    payload = {
+        "filter": {"property": "ID Discord", "rich_text": {"equals": discord_id}}
+    }
+
+    try:
+        res = requests.post(url, headers=HEADERS, json=payload)
+        data = res.json()
+    except Exception:
+        await interaction.response.send_message("❌ Errore nel contattare il database.", ephemeral=True)
+        return
+
+    personaggi = data.get("results", [])
+    if not personaggi:
+        await interaction.response.send_message("❌ Nessun PG trovato collegato al tuo ID Discord.", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    if len(personaggi) == 1:
+        await apri_crostolo(interaction, personaggi[0])
+    else:
+        class CrostoloPGView(discord.ui.View):
+            def __init__(self, user_id):
+                super().__init__(timeout=60)
+                self.user_id = user_id
+                self.mapping = {
+                    pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]: pg for pg in personaggi
+                }
+                self.select = discord.ui.Select(
+                    placeholder="Seleziona il PG",
+                    options=[discord.SelectOption(label=nome) for nome in self.mapping.keys()]
+                )
+                self.select.callback = self.callback
+                self.add_item(self.select)
+
+            async def callback(self, i: discord.Interaction):
+                if i.user.id != self.user_id:
+                    await i.response.send_message("Questo menu non è tuo!", ephemeral=True)
+                    return
+                nome = self.select.values[0]
+                await i.response.defer()
+                await apri_crostolo(interaction, self.mapping[nome])
+
+        await interaction.followup.send("Scegli il personaggio per aprire il Crostolo:", view=CrostoloPGView(interaction.user.id), ephemeral=True)
+
+
+async def apri_crostolo(interaction: discord.Interaction, pg):
+    nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
+    saldo = pg["properties"]["Croniri"]["number"]
+    pg_id = pg["id"]
+
+    if saldo < 5:
+        await interaction.followup.send(f"❌ {nome_pg} non ha abbastanza Croniri (ne servono 5).", ephemeral=True)
+        return
+
+    nuovo_saldo = saldo - 5
+    requests.patch(
+        f"https://api.notion.com/v1/pages/{pg_id}",
+        headers=HEADERS,
+        json={"properties": {"Croniri": {"number": nuovo_saldo}}}
+    )
+
+    frase = random.choice(CROSTOLO_FRASES)
+
+    tx_payload = {
+        "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
+        "properties": {
+            "Data": {"date": {"start": datetime.utcnow().isoformat()}},
+            "Importo": {"number": -5},
+            "Causale": {"rich_text": [{"text": {"content": "Crostolo della Fortuna"}}]},
+            "Mittente": {"relation": [{"id": pg_id}]}
+        }
+    }
+    requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
+
+    embed = discord.Embed(
+        title=f"✨ {nome_pg} ha aperto un Crostolo della Fortuna!",
+        description=frase,
+        color=discord.Color.orange()
+    )
+    embed.set_image(url="https://i.imgur.com/yBEUHo4.jpeg")
+
+    await interaction.delete_original_response()
+    await interaction.channel.send(embed=embed)
+
 
 # CODICI PER DEPLOY:
 
