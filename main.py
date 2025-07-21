@@ -5,6 +5,7 @@ from discord import app_commands
 import requests
 import os
 import random
+import unicodedata
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -25,6 +26,11 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
+def normalizza(s):
+    s = s.replace("’", "'").strip()
+    s = unicodedata.normalize("NFKC", s)
+    return s
+    
 #CODICE DADO
 
 CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
@@ -660,7 +666,7 @@ class GrattaSantiView(discord.ui.View):
         embed.add_field(name="🏆 Vincita:", value=f"Ȼ{vincita}", inline=True)
         embed.set_image(url="https://i.imgur.com/gxUgDqz.jpeg")
 
-                await interaction.channel.send(embed=embed)
+        await interaction.channel.send(embed=embed)
 
 
 
@@ -928,10 +934,6 @@ class SelezionePG(discord.ui.View):
         await interaction.response.send_modal(ScommessaModal(self.mapping[nome]))
 
 
-def normalizza(s):
-    return s.replace("’", "'").strip()
-
-
 class ScommessaModal(discord.ui.Modal):
     def __init__(self, pg):
         super().__init__(title="Scegli la tua scommessa")
@@ -976,13 +978,13 @@ class ScommessaModal(discord.ui.Modal):
         estratto_norm = normalizza(estratto)
         corrisponde = estratto_norm in segni_zodiacali
         stagionale = any(ARCANI.get(normalizza(s)) == ARCANI[estratto_norm] for s in segni_zodiacali)
-
+        
         if corrisponde:
             vincita = scommessa * 3
             titolo = f"🎉 {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
             descrizione = f"L'Arcano **{estratto}** corrisponde al tuo segno! Hai vinto {vincita} Croniri!"
         elif stagionale:
-            vincita = int(scommessa * 1.5)
+            vincita = math.ceil(scommessa * 1.5)
             titolo = f"✨ {nome_pg} ha scommesso {scommessa} Croniri alla Ruota degli Arcani"
             descrizione = f"L'Arcano **{estratto}** è della stessa stagione del tuo segno. Hai vinto {vincita} Croniri!"
         else:
