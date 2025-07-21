@@ -52,7 +52,7 @@ MAPPING_ABILITA = {a: a for a in ABILITA}
 
 @tree.command(name="dado", description="Tira un dado per un tuo personaggio")
 async def dado(interaction: discord.Interaction):
-await interaction.response.defer(ephemeral=True)
+    await interaction.response.defer(ephemeral=True)
     discord_id = str(interaction.user.id)
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
