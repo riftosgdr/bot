@@ -32,13 +32,17 @@ def normalizza(s):
     
 #CODICE DADO
 
-CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]ABILITA = [
-    "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",    "Persuasione", "Intimidazione", "Comando", "Maschera", "Autocontrollo",
-    "Osservare", "Analisi", "Tecnica", "Studio", "Cultura",    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"
-]
-MAPPING_CARATTERISTICHE = {    "Vigore": "VIGORE",
-    "Presenza": "PRESENZA",    "Acume": "ACUME",
-    "Risonanza": "RISONANZA"}
+CARATTERISTICHE = ["Vigore", "Presenza", "Acume", "Risonanza"]
+ABILITA = [ "Atletica", "Combattimento", "Mira", "Riflessi", "Robustezza",
+    "Persuasione", "Intimidazione", "Comando", "Maschera", "Autocontrollo",
+    "Osservare", "Analisi", "Tecnica", "Studio", "Cultura",
+    "Sintonia", "Conoscenza", "Trasmutazione", "Resilienza", "Salto"]
+
+MAPPING_CARATTERISTICHE = {"Vigore": "VIGORE",
+                           "Presenza": "PRESENZA",
+                           "Acume": "ACUME",
+                           "Risonanza": "RISONANZA"}
+
 MAPPING_ABILITA = {a: a for a in ABILITA}
 
 @tree.command(name="dado", description="Tira un dado per un tuo personaggio")
