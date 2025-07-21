@@ -970,8 +970,7 @@ async def ruota_arcana(interaction: discord.Interaction):
         await interaction.response.send_message("💫 Scegli quanto vuoi scommettere:", view=view, ephemeral=True)
     else:
         view = SelezionePG(interaction.user.id, personaggi)
-        await interaction.response.send_message("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
-
+        await interaction.followup.send("Scegli il personaggio con cui giocare:", view=view, ephemeral=True)
 
 class SelezionePG(discord.ui.View):
     def __init__(self, user_id, personaggi):
