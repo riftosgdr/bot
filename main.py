@@ -1350,20 +1350,10 @@ class PNGView(discord.ui.View):
 
         dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
 
-        if netti <= 0:
-            esito = "💥 Fallimento critico!"
-        elif netti >= 6:
-            esito = "🚀 Successo critico!"
-        elif netti >= 3:
-            esito = "✅ Successo!"
-        else:
-            esito = "❌ Fallimento."
-
         embed = discord.Embed(
             title=f"🤖 Tiro PNG Livello {livello} ({dadi}d10)",
             description=(
-                f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi Netti**\n"
-                f"{esito}"
+                f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
             ),
             color=discord.Color.dark_teal()
         )
