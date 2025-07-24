@@ -1314,47 +1314,67 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
     await interaction.channel.send(embed=embed)
 
 # CODICE PNG
-@tree.command(name="png", description="Tira i dadi per un PNG")
+@tree.command(name="png", description="Tira i dadi per un PNG personalizzato")
 async def png(interaction: discord.Interaction):
-    await interaction.response.send_modal(PNGModal())
+    await interaction.response.send_modal(PNGNameModal())
+class PNGNameModal(discord.ui.Modal, title="Inserisci il nome del PNG"):
+    nome = discord.ui.TextInput(label="Nome del PNG", placeholder="Es. Capitano Vorax", required=True)
 
-class PNGModal(discord.ui.Modal, title="Tiro PNG Personalizzato"):
-    nome = discord.ui.TextInput(label="Nome del PNG", placeholder="Es. Capitano, Guardia, Scagnozzo...", required=True)
-
-    def __init__(self):
-        super().__init__()
-        self.livello_select = discord.ui.Select(
-            placeholder="Seleziona il livello PNG",
+    async def on_submit(self, interaction: discord.Interaction):
+        nome_png = self.nome.value.strip()
+        view = PNGLevelView(nome_png, interaction.user.id)
+        await interaction.response.send_message(
+            f"✅ Hai inserito **{nome_png}**. Ora scegli il livello:",
+            view=view,
+            ephemeral=True
+        )
+class PNGLevelView(discord.ui.View):
+    def __init__(self, nome_png, user_id):
+        super().__init__(timeout=60)
+        self.nome_png = nome_png
+        self.user_id = user_id
+        self.select = discord.ui.Select(
+            placeholder="Scegli il livello PNG",
             options=[
                 discord.SelectOption(label="Livello 1 (3d10)", value="1"),
                 discord.SelectOption(label="Livello 2 (6d10)", value="2"),
                 discord.SelectOption(label="Livello 3 (9d10)", value="3"),
                 discord.SelectOption(label="Livello 4 (12d10)", value="4"),
-            ],
-            custom_id="livello"
+            ]
         )
-        self.add_item(self.nome)
-        self.add_item(self.livello_select)
+        self.select.callback = self.select_callback
+        self.add_item(self.select)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        nome_png = self.nome.value.strip()
-        livello = int(self.livello_select.values[0])
+    async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
+            return
+
+        livello = int(self.select.values[0])
         dadi = livello * 3
         tiri = [random.randint(1, 10) for _ in range(dadi)]
-
         successi = sum(1 for d in tiri if 7 <= d < 10) + sum(2 for d in tiri if d == 10)
         penalita = sum(1 for d in tiri if d == 1)
         netti = successi - penalita
-
         dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
 
+        if netti <= 0:
+            esito = "💥 Fallimento critico!"
+        elif netti >= 6:
+            esito = "🚀 Successo critico!"
+        elif netti >= 3:
+            esito = "✅ Successo!"
+        else:
+            esito = "❌ Fallimento."
+
         embed = discord.Embed(
-            title=f"🎲 {nome_png} (Livello {livello}) tira {dadi}d10",
-            description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
+            title=f"🎲 {self.nome_png} (Livello {livello}) tira {dadi}d10",
+            description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n{esito}",
             color=discord.Color.dark_teal()
         )
 
-        await interaction.response.send_message(embed=embed)
+        await interaction.channel.send(embed=embed)
+
 
 
 
