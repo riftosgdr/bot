@@ -1314,11 +1314,11 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
     await interaction.channel.send(embed=embed)
 
 # CODICE PNG
-@tree.command(name="png", description="Tira i dadi per un PNG!")
+@tree.command(name="png", description="Tira i dadi per un PNG di livello scelto")
 async def png(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
     view = PNGView(interaction.user.id)
-    await interaction.followup.send("🎲 Seleziona il livello del PNG:", view=view, ephemeral=True)
+    await interaction.response.send_message("🎲 Seleziona il livello del PNG:", view=view, ephemeral=True)
+
 class PNGView(discord.ui.View):
     def __init__(self, user_id):
         super().__init__(timeout=60)
