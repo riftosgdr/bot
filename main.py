@@ -1313,6 +1313,65 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
     await interaction.delete_original_response()
     await interaction.channel.send(embed=embed)
 
+# CODICE PNG
+@tree.command(name="png", description="Tira i dadi per un PNG!")
+async def png(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    view = PNGView(interaction.user.id)
+    await interaction.followup.send("🎲 Seleziona il livello del PNG:", view=view, ephemeral=True)
+class PNGView(discord.ui.View):
+    def __init__(self, user_id):
+        super().__init__(timeout=60)
+        self.user_id = user_id
+        self.select = discord.ui.Select(
+            placeholder="Scegli il livello PNG",
+            options=[
+                discord.SelectOption(label="PNG Livello 1", description="3d10", value="1"),
+                discord.SelectOption(label="PNG Livello 2", description="6d10", value="2"),
+                discord.SelectOption(label="PNG Livello 3", description="9d10", value="3"),
+                discord.SelectOption(label="PNG Livello 4", description="12d10", value="4"),
+            ]
+        )
+        self.select.callback = self.select_callback
+        self.add_item(self.select)
+
+    async def select_callback(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
+            return
+
+        livello = int(self.select.values[0])
+        dadi = livello * 3
+        tiri = [random.randint(1, 10) for _ in range(dadi)]
+
+        successi = sum(1 for d in tiri if 7 <= d < 10) + sum(2 for d in tiri if d == 10)
+        penalita = sum(1 for d in tiri if d == 1)
+        netti = successi - penalita
+
+        dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
+
+        if netti <= 0:
+            esito = "💥 Fallimento critico!"
+        elif netti >= 6:
+            esito = "🚀 Successo critico!"
+        elif netti >= 3:
+            esito = "✅ Successo!"
+        else:
+            esito = "❌ Fallimento."
+
+        embed = discord.Embed(
+            title=f"🤖 Tiro PNG Livello {livello} ({dadi}d10)",
+            description=(
+                f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi Netti**\n"
+                f"{esito}"
+            ),
+            color=discord.Color.dark_teal()
+        )
+
+        await interaction.delete_original_response()
+        await interaction.channel.send(embed=embed)
+
+
 
 # CODICI PER DEPLOY:
 
