@@ -1314,17 +1314,17 @@ async def apri_crostolo(interaction: discord.Interaction, pg):
     await interaction.channel.send(embed=embed)
 
 # CODICE PNG
-@tree.command(name="png", description="Tira i dadi per un PNG personalizzato")
+@tree.command(name="png", description="Tira i dadi per un PNG")
 async def png(interaction: discord.Interaction):
     await interaction.response.send_modal(PNGNameModal())
-class PNGNameModal(discord.ui.Modal, title="Inserisci il nome del PNG"):
-    nome = discord.ui.TextInput(label="Nome del PNG", placeholder="Es. Capitano Vorax", required=True)
+class PNGNameModal(discord.ui.Modal, title="Inserisci il nome del PNG:"):
+    nome = discord.ui.TextInput(label="Nome PNG", placeholder="Es. Scagnozzo, Guardia, Capitano...", required=True)
 
     async def on_submit(self, interaction: discord.Interaction):
         nome_png = self.nome.value.strip()
         view = PNGLevelView(nome_png, interaction.user.id)
         await interaction.response.send_message(
-            f"✅ Hai inserito **{nome_png}**. Ora scegli il livello:",
+            f"✅ Hai inserito **{nome_png}**. Ora scegli il Livello:",
             view=view,
             ephemeral=True
         )
@@ -1358,18 +1358,9 @@ class PNGLevelView(discord.ui.View):
         netti = successi - penalita
         dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
 
-        if netti <= 0:
-            esito = "💥 Fallimento critico!"
-        elif netti >= 6:
-            esito = "🚀 Successo critico!"
-        elif netti >= 3:
-            esito = "✅ Successo!"
-        else:
-            esito = "❌ Fallimento."
-
         embed = discord.Embed(
-            title=f"🎲 {self.nome_png} (Livello {livello}) tira {dadi}d10",
-            description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n{esito}",
+            title=f"🥷🏼 {self.nome_png} (Livello {livello}) tira {dadi}d10",
+            description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
             color=discord.Color.dark_teal()
         )
 
