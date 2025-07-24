@@ -1368,8 +1368,7 @@ class PNGView(discord.ui.View):
             color=discord.Color.dark_teal()
         )
 
-        await interaction.delete_original_response()
-        await interaction.channel.send(embed=embed)
+        await interaction.channel.send(embed=embed, ephemeral=False)
 
 
 
