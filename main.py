@@ -354,13 +354,11 @@ def paga_personaggio_embed(pg):
     requests.patch(patch_url, headers=HEADERS, json=patch_data)
 
     embed = discord.Embed(
-        title="💼 Stipendio Ritirato",
+        title="💰 Stipendio Ritirato",
         description=f"**{nome_pg}** ha ricevuto il suo stipendio mensile!",
         color=discord.Color.green()
     )
-    embed.add_field(name="📅 Giorni nel mese", value=str(giorni_nel_mese), inline=True)
-    embed.add_field(name="💸 Stipendio giornaliero", value=f"Ȼ{stipendio_giornaliero}", inline=True)
-    embed.add_field(name="💰 Totale ricevuto", value=f"Ȼ{stipendio}", inline=False)
+    embed.add_field(name="💸 Totale ricevuto", value=f"Ȼ{stipendio}", inline=False)
     embed.add_field(name="Saldo precedente", value=f"Ȼ{saldo}", inline=True)
     embed.add_field(name="Nuovo saldo", value=f"Ȼ{nuovo_saldo}", inline=True)
 
@@ -522,16 +520,24 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
+        mittente_mention = f"<@{interaction.user.id}>"
+        destinatario_mention = (
+            f"<@{self.destinatario_user_id}>" if self.destinatario_user_id else self.destinatario_nome
+        )
+
         embed = discord.Embed(
             title="💸 Croniri Trasferiti",
-            description=f"{self.mittente_nome} → {self.destinatario_nome}",
+            description=(
+                f"**{self.mittente_nome}** ha trasferito **Ȼ{importo}** a **{self.destinatario_nome}** "
+                f"con causale: *{self.causale.value.strip()}*.\n"
+                f"(*{mittente_mention} {destinatario_mention}*)"
+            ),
             color=discord.Color.gold()
         )
-        embed.add_field(name="Importo", value=f"Ȼ{importo}", inline=True)
-        embed.add_field(name="Causale", value=self.causale.value.strip(), inline=True)
-        embed.set_footer(text=f"Mittente: {interaction.user.display_name}")
+        await interaction.channel.send(embed=embed)
 
-        
+
+
 
 
 ############################### GRATTA I SANTI ###############################
