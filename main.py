@@ -268,23 +268,23 @@ CARICA_STIPENDIO = {
 
 @tree.command(name="stipendio", description="Ritira lo stipendio per un tuo personaggio")
 async def stipendio(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
     discord_id = str(interaction.user.id)
-    try:
-        await interaction.response.defer(ephemeral=True)
-    except discord.NotFound:
-        return
 
     url = f"https://api.notion.com/v1/databases/{DATABASE_ID}/query"
     payload = {
         "filter": {
             "property": "ID Discord",
-            "rich_text": {
-                "equals": discord_id
-            }
+            "rich_text": {"equals": discord_id}
         }
     }
-    response = requests.post(url, headers=HEADERS, json=payload)
-    data = response.json()
+
+    try:
+        res = requests.post(url, headers=HEADERS, json=payload)
+        data = res.json()
+    except Exception:
+        await interaction.followup.send("❌ Errore nel contattare il database.", ephemeral=True)
+        return
 
     personaggi = data.get("results", [])
     if not personaggi:
@@ -292,72 +292,52 @@ async def stipendio(interaction: discord.Interaction):
         return
 
     if len(personaggi) == 1:
-        page_id = personaggi[0]["id"]
-        result = paga_personaggio(page_id)
-        await interaction.delete_original_response()
-        await interaction.followup.send(result, ephemeral=True)
+        pg = personaggi[0]
+        embed = paga_personaggio_embed(pg)
+        await interaction.followup.send(embed=embed, ephemeral=True)
     else:
-        mapping = {}
-        pg_list = []
-        for pg in personaggi:
-            nome_pg = pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
-            mapping[nome_pg] = pg["id"]
-            pg_list.append(nome_pg)
+        mapping = {
+            pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]: pg for pg in personaggi
+        }
+        options = [discord.SelectOption(label=nome, value=nome) for nome in mapping.keys()]
 
-        view = StipendioView(pg_list, mapping, interaction.user.id)
-        await interaction.followup.send("Scegli per quale PG vuoi ritirare lo stipendio:", view=view, ephemeral=True)
+        class StipendioPGView(discord.ui.View):
+            def __init__(self, user_id):
+                super().__init__(timeout=60)
+                self.user_id = user_id
+                self.mapping = mapping
+                self.select = discord.ui.Select(placeholder="Scegli il personaggio", options=options)
+                self.select.callback = self.callback
+                self.add_item(self.select)
 
+            async def callback(self, i: discord.Interaction):
+                if i.user.id != self.user_id:
+                    await i.response.send_message("Questo menu non è tuo!", ephemeral=True)
+                    return
+                nome = self.select.values[0]
+                embed = paga_personaggio_embed(self.mapping[nome])
+                await i.response.edit_message(content=None, embed=embed, view=None)
 
-class StipendioView(discord.ui.View):
-    def __init__(self, pg_list, mapping, user_id):
-        super().__init__(timeout=60)
-        self.user_id = user_id
-        self.mapping = mapping
-        options = [
-            discord.SelectOption(label=pg, description="Ritira stipendio per questo PG")
-            for pg in pg_list
-        ]
-        self.add_item(StipendioSelect(options, mapping, user_id))
-
-
-class StipendioSelect(discord.ui.Select):
-    def __init__(self, options, mapping, user_id):
-        super().__init__(placeholder="Scegli il personaggio", min_values=1, max_values=1, options=options)
-        self.mapping = mapping
-        self.user_id = user_id
-
-    async def callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("Questo menu non è tuo!", ephemeral=True)
-            return
-        try:
-            await interaction.response.defer()
-        except discord.NotFound:
-            return
-
-        pg_nome = self.values[0]
-        page_id = self.mapping[pg_nome]
-        result = paga_personaggio(page_id)
-        await interaction.delete_original_response()
-        await interaction.channel.send(result)
-
-
-def paga_personaggio(page_id):
+        await interaction.followup.send("Seleziona il personaggio da stipendiare:", view=StipendioPGView(interaction.user.id), ephemeral=True)
+def paga_personaggio_embed(pg):
     oggi = datetime.utcnow().date()
-    res = requests.get(f"https://api.notion.com/v1/pages/{page_id}", headers=HEADERS)
-    data = res.json()["properties"]
-
-    nome_pg = data["Nome PG"]["rich_text"][0]["text"]["content"]
-    saldo = data["Croniri"]["number"]
-    carica = data["Grado Gilda"]["number"]
-    ultimo = data.get("Ultimo Accredito", {}).get("date")
+    props = pg["properties"]
+    page_id = pg["id"]
+    nome_pg = props["Nome PG"]["rich_text"][0]["text"]["content"]
+    saldo = props["Croniri"]["number"]
+    carica = props["Grado Gilda"]["number"]
+    ultimo = props.get("Ultimo Accredito", {}).get("date")
     ultima_data = datetime.strptime(ultimo["start"], "%Y-%m-%d").date() if ultimo else datetime.min.date()
 
     oggi_mese = oggi.strftime("%Y-%m")
     ultimo_mese = ultima_data.strftime("%Y-%m")
 
     if ultimo_mese == oggi_mese:
-        return f"⏳ **{nome_pg}** ha già ricevuto lo stipendio questo mese."
+        return discord.Embed(
+            title="⏳ Stipendio già ritirato",
+            description=f"**{nome_pg}** ha già ricevuto lo stipendio questo mese.",
+            color=discord.Color.orange()
+        )
 
     giorni_nel_mese = calendar.monthrange(oggi.year, oggi.month)[1]
     stipendio_giornaliero = CARICA_STIPENDIO.get(carica, 0)
@@ -371,23 +351,21 @@ def paga_personaggio(page_id):
             "Ultimo Accredito": {"date": {"start": oggi.isoformat()}}
         }
     }
-    patch_response = requests.patch(patch_url, headers=HEADERS, json=patch_data)
-    
-    if patch_response.status_code == 200:
-        return (
-            f"💰 **{nome_pg}** ha ricevuto Ȼ{stipendio} questo mese ({stipendio_giornaliero} × {giorni_nel_mese} giorni).\n"
-            f"💼 Saldo precedente: Ȼ{saldo}\n"
-            f"💳 Nuovo saldo: Ȼ{nuovo_saldo}"
-        )
-    else:
-        return f"❌ Errore nel pagare {nome_pg}."
-        result = paga_personaggio(page_id)
-    await interaction.delete_original_response()
+    requests.patch(patch_url, headers=HEADERS, json=patch_data)
 
-    if isinstance(result, discord.Embed):
-        await interaction.followup.send(embed=result, ephemeral=True)
-    else:
-        await interaction.followup.send(result, ephemeral=True)
+    embed = discord.Embed(
+        title="💼 Stipendio Ritirato",
+        description=f"**{nome_pg}** ha ricevuto il suo stipendio mensile!",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="📅 Giorni nel mese", value=str(giorni_nel_mese), inline=True)
+    embed.add_field(name="💸 Stipendio giornaliero", value=f"Ȼ{stipendio_giornaliero}", inline=True)
+    embed.add_field(name="💰 Totale ricevuto", value=f"Ȼ{stipendio}", inline=False)
+    embed.add_field(name="Saldo precedente", value=f"Ȼ{saldo}", inline=True)
+    embed.add_field(name="Nuovo saldo", value=f"Ȼ{nuovo_saldo}", inline=True)
+
+    return embed
+
 
 
     # CODICE TRASFERIMENTO SOLDI:
