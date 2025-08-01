@@ -243,9 +243,13 @@ class SecondaFaseTiroView(discord.ui.View):
 
         embed = discord.Embed(
             title=f"🎲 Tiro per {self.personaggio['Nome']}",
-            description=f"{self.personaggio['Nome']} tira **{self.caratteristica}** **{self.abilita}** con {self.bonus}d10 a **Difficoltà** {difficolta} e **Soglia** {soglia_nome}"
-                + f"🎯 Risulati: [{', '.join(dettagli)}] → value=str(max(netti, 0))",
-                + f"value=esito",
+            description=(
+                f"{self.personaggio['Nome']} tira **{self.caratteristica}**"
+                + (f" **{self.abilita}**" if self.abilita else "")
+                + f" con {self.bonus:+}d10 a **Difficoltà** {difficolta} e **Soglia** {soglia_nome}.\n"
+                f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
+                f"{esito}"
+            ),
             color=discord.Color.blue()
         )
         
