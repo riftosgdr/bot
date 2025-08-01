@@ -245,8 +245,8 @@ class SecondaFaseTiroView(discord.ui.View):
             title=f"🎲 Tiro per {self.personaggio['Nome']}",
             description=(
                 f"{self.personaggio['Nome']} tira **{self.caratteristica}**"
-                + (f" **{self.abilita}**" if self.abilita else "")
-                + f" con {self.bonus:+}d10 a **Difficoltà** {difficolta} e **Soglia** {soglia_nome}.\n"
+                + (f"e **{self.abilita}**" if self.abilita else "")
+                + f" con {self.bonus:+}d10 a **Difficoltà** {difficolta} e **Soglia {soglia_nome}**.\n"
                 f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
                 f"{esito}"
             ),
@@ -397,11 +397,7 @@ async def trasferisci(interaction: discord.Interaction):
             await inter.response.send_message("Non puoi usare questo menu.", ephemeral=True)
             return
 
-        try:
-            await inter.response.defer()
-        except discord.NotFound:
-            return
-
+        await inter.response.defer()
         mittente_id = mittente_select.values[0]
         mittente_pg = next(pg for pg in miei_pg if pg["id"] == mittente_id)
         mittente_nome = mittente_pg["properties"]["Nome PG"]["rich_text"][0]["text"]["content"]
@@ -447,11 +443,12 @@ async def trasferisci(interaction: discord.Interaction):
     await interaction.followup.send("Hai più di un PG. Scegli il mittente:", view=mittente_view, ephemeral=True)
 
 
-class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
+class TransazioneModal(discord.ui.Modal):
     recent_transactions = {}
 
     def __init__(self, mittente_id, mittente_nome, mittente_saldo, destinatario_id, destinatario_nome, destinatario_user_id):
-        super().__init__()
+        super().__init__(title="Trasferimento Croniri")
+
         self.mittente_id = mittente_id
         self.mittente_nome = mittente_nome
         self.mittente_saldo = mittente_saldo
@@ -491,6 +488,7 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             await interaction.followup.send("❌ Il tuo personaggio non ha abbastanza Croniri.", ephemeral=True)
             return
 
+        # Aggiorna saldo mittente
         new_mittente = self.mittente_saldo - importo
         requests.patch(
             f"https://api.notion.com/v1/pages/{self.mittente_id}",
@@ -498,16 +496,19 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             json={"properties": {"Croniri": {"number": new_mittente}}}
         )
 
+        # Ottieni saldo destinatario
         res_dest = requests.get(f"https://api.notion.com/v1/pages/{self.destinatario_id}", headers=HEADERS)
         saldo_dest = res_dest.json()["properties"]["Croniri"].get("number", 0)
         new_dest = saldo_dest + importo
 
+        # Aggiorna saldo destinatario
         requests.patch(
             f"https://api.notion.com/v1/pages/{self.destinatario_id}",
             headers=HEADERS,
             json={"properties": {"Croniri": {"number": new_dest}}}
         )
 
+        # Log transazione in Notion
         tx_payload = {
             "parent": {"database_id": os.getenv("NOTION_TX_DB_ID")},
             "properties": {
@@ -520,10 +521,9 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
+        # Menzioni utente
         mittente_mention = f"<@{interaction.user.id}>"
-        destinatario_mention = (
-            f"<@{self.destinatario_user_id}>" if self.destinatario_user_id else self.destinatario_nome
-        )
+        destinatario_mention = f"<@{self.destinatario_user_id}>" if self.destinatario_user_id else self.destinatario_nome
 
         embed = discord.Embed(
             title="💸 Croniri Trasferiti",
@@ -534,8 +534,8 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             ),
             color=discord.Color.gold()
         )
-        await interaction.channel.send(embed=embed)
 
+        await interaction.channel.send(embed=embed)
 
 
 
