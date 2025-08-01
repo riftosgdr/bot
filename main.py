@@ -531,14 +531,30 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
         }
         requests.post("https://api.notion.com/v1/pages", headers=HEADERS, json=tx_payload)
 
-        messaggio_pubblico = (
-            f"💸 **{self.mittente_nome}** ha trasferito Ȼ{importo} a **{self.destinatario_nome}**. "
-            f"(<@{interaction.user.id}>, <@{self.destinatario_user_id}>)\n"
-            f"📄 Causale: {self.causale.value.strip()}"
+        embed = discord.Embed(
+            title="💸 Croniri Trasferiti",
+            description=f"{self.mittente_nome} → {self.destinatario_nome}",
+            color=discord.Color.gold()
         )
+        embed.add_field(name="Importo", value=f"Ȼ{importo}", inline=True)
+        embed.add_field(name="Causale", value=self.causale.value.strip(), inline=False)
+        embed.set_footer(text=f"Mittente: {interaction.user.display_name}")
 
+        embed = discord.Embed(
+            title=f"🎲 Tiro per {self.personaggio['Nome']}",
+            description=f"**{self.caratteristica}**: {caratteristica_val}"
+                + (f"\n**{self.abilita}**: {abilita_val}" if self.abilita else "")
+                + f"\n**Bonus/Malus**: {self.bonus}"
+                + f"\n**Difficoltà**: {difficolta} | **Soglia**: {soglia_nome} ({soglia})"
+                + f"\n\n🎯 Tiri: [{', '.join(dettagli)}]",
+            color=discord.Color.blue()
+        )
+        embed.add_field(name="✅ Successi Netti", value=str(max(netti, 0)), inline=True)
+        embed.add_field(name="📌 Esito", value=esito, inline=True)
+        
         await interaction.delete_original_response()
-        await interaction.channel.send(messaggio_pubblico)
+        await interaction.channel.send(embed=embed)
+
 
 ############################### GRATTA I SANTI ###############################
 
@@ -1346,27 +1362,27 @@ class PNGLevelView(discord.ui.View):
         self.add_item(self.select)
 
     async def select_callback(self, interaction: discord.Interaction):
-    if interaction.user.id != self.user_id:
-        await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
-        return
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
+            return
 
-    await interaction.response.defer()
+        await interaction.response.defer()
 
-    livello = int(self.select.values[0])
-    dadi = livello * 3
-    tiri = [random.randint(1, 10) for _ in range(dadi)]
-    successi = sum(1 for d in tiri if 7 <= d < 10) + sum(2 for d in tiri if d == 10)
-    penalita = sum(1 for d in tiri if d == 1)
-    netti = successi - penalita
-    dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
+        livello = int(self.select.values[0])
+        dadi = livello * 3
+        tiri = [random.randint(1, 10) for _ in range(dadi)]
+        successi = sum(1 for d in tiri if 7 <= d < 10) + sum(2 for d in tiri if d == 10)
+        penalita = sum(1 for d in tiri if d == 1)
+        netti = successi - penalita
+        dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
 
-    embed = discord.Embed(
-        title=f"🤖 {self.nome_png} (Livello {livello}) tira {dadi}d10",
-        description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
-        color=discord.Color.dark_teal()
-    )
+        embed = discord.Embed(
+            title=f"🥷🏼 {self.nome_png} (Livello {livello}) tira {dadi}d10",
+            description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
+            color=discord.Color.dark_teal()
+        )
 
-    await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed)
 
 
 
