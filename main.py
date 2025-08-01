@@ -243,15 +243,11 @@ class SecondaFaseTiroView(discord.ui.View):
 
         embed = discord.Embed(
             title=f"🎲 Tiro per {self.personaggio['Nome']}",
-            description=f"**{self.caratteristica}**: {caratteristica_val}"
-                + (f"\n**{self.abilita}**: {abilita_val}" if self.abilita else "")
-                + f"\n**Bonus/Malus**: {self.bonus}"
-                + f"\n**Difficoltà**: {difficolta} | **Soglia**: {soglia_nome} ({soglia})"
-                + f"\n\n🎯 Tiri: [{', '.join(dettagli)}]",
+            description=f"{self.personaggio['Nome']} tira **{self.caratteristica}** **{self.abilita}** con {self.bonus}d10 a **Difficoltà** {difficolta} e **Soglia** {soglia_nome}"
+                + f"🎯 Risulati: [{', '.join(dettagli)}] → value=str(max(netti, 0))",
+                + f"value=esito"
             color=discord.Color.blue()
         )
-        embed.add_field(name="✅ Successi Netti", value=str(max(netti, 0)), inline=True)
-        embed.add_field(name="📌 Esito", value=esito, inline=True)
         
         await interaction.delete_original_response()
         await interaction.channel.send(embed=embed)
