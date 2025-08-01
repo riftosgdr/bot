@@ -241,14 +241,20 @@ class SecondaFaseTiroView(discord.ui.View):
         else:
             esito = "❌ Fallimento."
 
-        await interaction.delete_original_response()
-        await interaction.channel.send(
-            f"🎲 **{self.personaggio['Nome']}** tira {self.caratteristica} {caratteristica_val}"
-            + (f" + {self.abilita} {abilita_val}" if self.abilita else "")
-            + f" + {self.bonus} a **Difficoltà {difficolta}** e **Soglia {soglia_nome}** = {dado_totale}d10\n"
-            + f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**\n"
-            + f"{esito}"
+        embed = discord.Embed(
+            title=f"🎲 Tiro per {self.personaggio['Nome']}",
+            description=f"**{self.caratteristica}**: {caratteristica_val}"
+                + (f"\n**{self.abilita}**: {abilita_val}" if self.abilita else "")
+                + f"\n**Bonus/Malus**: {self.bonus}"
+                + f"\n**Difficoltà**: {difficolta} | **Soglia**: {soglia_nome} ({soglia})"
+                + f"\n\n🎯 Tiri: [{', '.join(dettagli)}]",
+            color=discord.Color.blue()
         )
+        embed.add_field(name="✅ Successi Netti", value=str(max(netti, 0)), inline=True)
+        embed.add_field(name="📌 Esito", value=esito, inline=True)
+        
+        await interaction.delete_original_response()
+        await interaction.channel.send(embed=embed)
 
     # CODICE RITIRO STIPENDIO:
 
@@ -366,7 +372,7 @@ def paga_personaggio(page_id):
         }
     }
     patch_response = requests.patch(patch_url, headers=HEADERS, json=patch_data)
-
+    
     if patch_response.status_code == 200:
         return (
             f"💰 **{nome_pg}** ha ricevuto Ȼ{stipendio} questo mese ({stipendio_giornaliero} × {giorni_nel_mese} giorni).\n"
@@ -375,6 +381,13 @@ def paga_personaggio(page_id):
         )
     else:
         return f"❌ Errore nel pagare {nome_pg}."
+        result = paga_personaggio(page_id)
+    await interaction.delete_original_response()
+
+    if isinstance(result, discord.Embed):
+        await interaction.followup.send(embed=result, ephemeral=True)
+    else:
+        await interaction.followup.send(result, ephemeral=True)
 
 
     # CODICE TRASFERIMENTO SOLDI:
@@ -537,23 +550,10 @@ class TransazioneModal(discord.ui.Modal, title="Trasferimento Croniri"):
             color=discord.Color.gold()
         )
         embed.add_field(name="Importo", value=f"Ȼ{importo}", inline=True)
-        embed.add_field(name="Causale", value=self.causale.value.strip(), inline=False)
+        embed.add_field(name="Causale", value=self.causale.value.strip(), inline=True)
         embed.set_footer(text=f"Mittente: {interaction.user.display_name}")
 
-        embed = discord.Embed(
-            title=f"🎲 Tiro per {self.personaggio['Nome']}",
-            description=f"**{self.caratteristica}**: {caratteristica_val}"
-                + (f"\n**{self.abilita}**: {abilita_val}" if self.abilita else "")
-                + f"\n**Bonus/Malus**: {self.bonus}"
-                + f"\n**Difficoltà**: {difficolta} | **Soglia**: {soglia_nome} ({soglia})"
-                + f"\n\n🎯 Tiri: [{', '.join(dettagli)}]",
-            color=discord.Color.blue()
-        )
-        embed.add_field(name="✅ Successi Netti", value=str(max(netti, 0)), inline=True)
-        embed.add_field(name="📌 Esito", value=esito, inline=True)
         
-        await interaction.delete_original_response()
-        await interaction.channel.send(embed=embed)
 
 
 ############################### GRATTA I SANTI ###############################
