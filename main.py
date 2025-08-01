@@ -535,7 +535,9 @@ class TransazioneModal(discord.ui.Modal):
             color=discord.Color.gold()
         )
 
+        await interaction.delete_original_response()
         await interaction.channel.send(embed=embed)
+        
 
 
 
@@ -1361,7 +1363,7 @@ class PNGLevelView(discord.ui.View):
         dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
 
         embed = discord.Embed(
-            title=f"🥷🏼 {self.nome_png} (Livello {livello}) tira {dadi}d10",
+            title=f"🤖 {self.nome_png} (Livello {livello}) tira {dadi}d10",
             description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
             color=discord.Color.dark_teal()
         )
