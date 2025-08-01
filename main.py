@@ -1346,25 +1346,28 @@ class PNGLevelView(discord.ui.View):
         self.add_item(self.select)
 
     async def select_callback(self, interaction: discord.Interaction):
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
-            return
+    if interaction.user.id != self.user_id:
+        await interaction.response.send_message("Non puoi usare questo menu!", ephemeral=True)
+        return
 
-        livello = int(self.select.values[0])
-        dadi = livello * 3
-        tiri = [random.randint(1, 10) for _ in range(dadi)]
-        successi = sum(1 for d in tiri if 7 <= d < 10) + sum(2 for d in tiri if d == 10)
-        penalita = sum(1 for d in tiri if d == 1)
-        netti = successi - penalita
-        dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
+    await interaction.response.defer()
 
-        embed = discord.Embed(
-            title=f"🥷🏼 {self.nome_png} (Livello {livello}) tira {dadi}d10",
-            description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
-            color=discord.Color.dark_teal()
-        )
+    livello = int(self.select.values[0])
+    dadi = livello * 3
+    tiri = [random.randint(1, 10) for _ in range(dadi)]
+    successi = sum(1 for d in tiri if 7 <= d < 10) + sum(2 for d in tiri if d == 10)
+    penalita = sum(1 for d in tiri if d == 1)
+    netti = successi - penalita
+    dettagli = [f"**{d}**" if d >= 7 else f"~~{d}~~" for d in tiri]
 
-        await interaction.channel.send(embed=embed)
+    embed = discord.Embed(
+        title=f"🤖 {self.nome_png} (Livello {livello}) tira {dadi}d10",
+        description=f"🎯 Risultati: [{', '.join(dettagli)}] → **{max(netti, 0)} Successi**",
+        color=discord.Color.dark_teal()
+    )
+
+    await interaction.followup.send(embed=embed)
+
 
 
 
