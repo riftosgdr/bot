@@ -1368,7 +1368,8 @@ class PNGLevelView(discord.ui.View):
             color=discord.Color.dark_teal()
         )
 
-        await interaction.followup.send(embed=embed)
+        await interaction.delete_original_response()
+        await interaction.channel.send(embed=embed)
 
 
 
