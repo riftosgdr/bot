@@ -245,7 +245,7 @@ class SecondaFaseTiroView(discord.ui.View):
             title=f"🎲 Tiro per {self.personaggio['Nome']}",
             description=f"{self.personaggio['Nome']} tira **{self.caratteristica}** **{self.abilita}** con {self.bonus}d10 a **Difficoltà** {difficolta} e **Soglia** {soglia_nome}"
                 + f"🎯 Risulati: [{', '.join(dettagli)}] → value=str(max(netti, 0))",
-                + f"value=esito"
+                + f"value=esito",
             color=discord.Color.blue()
         )
         
